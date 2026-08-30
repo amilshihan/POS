@@ -1,0 +1,7 @@
+focus-timer/
+.claude/
+node_modules/
+.next/
+.env
+.env.local
+.vercel
