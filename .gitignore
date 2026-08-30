@@ -1,7 +1,10 @@
-focus-timer/
-.claude/
 node_modules/
 .next/
 .env
 .env.local
+.env*.local
 .vercel
+dev-out.log
+dev-err.log
+*.tsbuildinfo
+next-env.d.ts
