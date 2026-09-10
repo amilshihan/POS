@@ -8,15 +8,19 @@ export default async function InventoryPage() {
   const { profile } = await getCurrentUserAndProfile();
   const admin = isAdmin(profile);
 
-  const [partsRes, categoriesRes] = await Promise.all([
+  const [partsRes, categoriesRes, suppliersRes, taxesRes] = await Promise.all([
     supabase.from(admin ? "parts" : "parts_cashier").select("*").order("name"),
     supabase.from("categories").select("*").order("name"),
+    supabase.from("suppliers").select("id, name").order("name"),
+    supabase.from("taxes").select("*").order("name"),
   ]);
 
   return (
     <InventoryClient
       initialParts={partsRes.data ?? []}
       categories={categoriesRes.data ?? []}
+      suppliers={suppliersRes.data ?? []}
+      taxes={taxesRes.data ?? []}
       admin={admin}
     />
   );

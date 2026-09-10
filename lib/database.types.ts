@@ -15,6 +15,14 @@ export interface Profile {
 export interface Category {
   id: string;
   name: string;
+  parent_id: string | null;
+}
+
+export interface Tax {
+  id: string;
+  name: string;
+  rate_percent: number;
+  is_default: boolean;
 }
 
 export interface Part {
@@ -26,8 +34,19 @@ export interface Part {
   category_id: string | null;
   cost_price: number;
   sell_price: number;
+  retail_price: number;
+  markup_percent: number | null;
+  tax_id: string | null;
+  is_tax_inclusive_price: boolean;
+  is_price_change_allowed: boolean;
+  is_using_default_quantity: boolean;
+  is_service: boolean;
+  supplier_id: string | null;
   qty_on_hand: number;
+  reorder_point: number | null;
+  preferred_quantity: number | null;
   low_stock_threshold: number;
+  low_stock_warning_enabled: boolean;
   unit: string;
   is_active: boolean;
   created_by: string | null;

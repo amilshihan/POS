@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 const CASHIER_LINKS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/pos", label: "New Sale" },
-  { href: "/inventory", label: "Inventory" },
+  { href: "/inventory", label: "Products" },
   { href: "/customers", label: "Customers" },
   { href: "/cheques", label: "Cheques" },
 ];
