@@ -3,6 +3,8 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { TITLES, combineTitleName, isValidName, isValidPhone } from "@/lib/validation";
+import { COUNTRY_CODES, DEFAULT_COUNTRY_CODE, combinePhone } from "@/lib/countries";
 
 type PartRow = {
   id: string;
@@ -16,6 +18,7 @@ type PartRow = {
 
 type CustomerRow = {
   id: string;
+  customer_code: string;
   name: string;
   phone: string | null;
   credit_balance: number;
@@ -41,6 +44,11 @@ export default function POSClient({
   const [search, setSearch] = useState("");
   const [scanBuffer, setScanBuffer] = useState("");
   const [customerId, setCustomerId] = useState<string>("");
+  const [newCustomerMode, setNewCustomerMode] = useState(false);
+  const [newCustomerTitle, setNewCustomerTitle] = useState("");
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [newCustomerPhoneCountry, setNewCustomerPhoneCountry] = useState(DEFAULT_COUNTRY_CODE);
+  const [newCustomerPhone, setNewCustomerPhone] = useState("");
   const [discount, setDiscount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [amountPaid, setAmountPaid] = useState<string>("");
@@ -49,6 +57,7 @@ export default function POSClient({
   const [chequeDueDate, setChequeDueDate] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const scanInputRef = useRef<HTMLInputElement>(null);
 
   const subtotal = useMemo(
@@ -115,8 +124,22 @@ export default function POSClient({
       setError("Add at least one part to the cart.");
       return;
     }
-    if ((paymentMethod === "credit" || paymentMethod === "mixed") && !customerId) {
-      setError("Select a customer for credit or mixed payment.");
+    if (newCustomerMode && !newCustomerName.trim()) {
+      setError("Enter the new customer's name.");
+      return;
+    }
+    if (newCustomerMode && newCustomerName.trim() && !isValidName(newCustomerName)) {
+      setAlertMessage("The name you have entered is incorrect.");
+      return;
+    }
+    const newCustomerFullPhone = combinePhone(newCustomerPhoneCountry, newCustomerPhone);
+    if (newCustomerMode && newCustomerFullPhone && !isValidPhone(newCustomerFullPhone)) {
+      setAlertMessage("The mobile number you have entered is incorrect.");
+      return;
+    }
+    const hasCustomer = newCustomerMode ? !!newCustomerName.trim() : !!customerId;
+    if ((paymentMethod === "credit" || paymentMethod === "mixed") && !hasCustomer) {
+      setError("Select or enter a customer for credit or mixed payment.");
       return;
     }
     if (paymentMethod === "cheque" && (!chequeNumber || !chequeDueDate)) {
@@ -135,10 +158,22 @@ export default function POSClient({
 
     setSubmitting(true);
     try {
+      let finalCustomerId = customerId || null;
+
+      if (newCustomerMode && newCustomerName.trim()) {
+        const { data: newCustomer, error: customerError } = await supabase
+          .from("customers")
+          .insert({ name: combineTitleName(newCustomerTitle, newCustomerName), phone: newCustomerFullPhone || null })
+          .select()
+          .single();
+        if (customerError || !newCustomer) throw customerError ?? new Error("Could not save customer");
+        finalCustomerId = newCustomer.id;
+      }
+
       const { data: sale, error: saleError } = await supabase
         .from("sales")
         .insert({
-          customer_id: customerId || null,
+          customer_id: finalCustomerId,
           cashier_id: cashierId,
           subtotal,
           discount,
@@ -167,7 +202,7 @@ export default function POSClient({
         const { error: chequeError } = await supabase.from("cheques").insert({
           direction: "received",
           related_sale_id: sale.id,
-          customer_id: customerId || null,
+          customer_id: finalCustomerId,
           cheque_number: chequeNumber,
           bank_name: bankName || null,
           amount: total,
@@ -186,6 +221,7 @@ export default function POSClient({
   }
 
   return (
+    <>
     <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div className="lg:col-span-2 space-y-4">
         <h1 className="text-2xl font-bold text-slate-900">New Sale</h1>
@@ -293,19 +329,80 @@ export default function POSClient({
           <h2 className="font-semibold text-slate-800">Payment</h2>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Customer</label>
-            <select
-              value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2"
-            >
-              <option value="">Walk-in customer</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} {c.credit_balance > 0 ? `(owes $${c.credit_balance.toFixed(2)})` : ""}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-slate-700">Customer</label>
+              <button
+                type="button"
+                onClick={() => {
+                  setNewCustomerMode((v) => !v);
+                  setCustomerId("");
+                  setNewCustomerTitle("");
+                  setNewCustomerName("");
+                  setNewCustomerPhone("");
+                }}
+                className="text-xs text-blue-600 hover:underline"
+              >
+                {newCustomerMode ? "Choose existing customer" : "+ New customer"}
+              </button>
+            </div>
+            {newCustomerMode ? (
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <select
+                    value={newCustomerTitle}
+                    onChange={(e) => setNewCustomerTitle(e.target.value)}
+                    className="rounded-lg border border-slate-300 px-2 py-2 w-24 shrink-0"
+                  >
+                    <option value="">Title</option>
+                    {TITLES.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    value={newCustomerName}
+                    onChange={(e) => setNewCustomerName(e.target.value)}
+                    placeholder="Customer name"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <select
+                    value={newCustomerPhoneCountry}
+                    onChange={(e) => setNewCustomerPhoneCountry(e.target.value)}
+                    className="rounded-lg border border-slate-300 px-2 py-2 w-36 shrink-0"
+                  >
+                    {COUNTRY_CODES.map((c) => (
+                      <option key={c.name} value={c.dialCode}>
+                        {c.name} ({c.dialCode})
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="tel"
+                    value={newCustomerPhone}
+                    onChange={(e) => setNewCustomerPhone(e.target.value)}
+                    placeholder="Phone (optional, e.g. 771234567)"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                  />
+                </div>
+              </div>
+            ) : (
+              <select
+                value={customerId}
+                onChange={(e) => setCustomerId(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2"
+              >
+                <option value="">Walk-in customer</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.customer_code} — {c.name}{" "}
+                    {c.credit_balance > 0 ? `(owes $${c.credit_balance.toFixed(2)})` : ""}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div>
@@ -413,5 +510,25 @@ export default function POSClient({
         </div>
       </div>
     </div>
+
+    {alertMessage && (
+      <div
+        className="fixed inset-0 bg-black/40 flex items-center justify-center z-40 p-4"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) setAlertMessage(null);
+        }}
+      >
+        <div className="bg-white rounded-xl p-5 w-full max-w-sm space-y-4 text-center">
+          <p className="text-sm text-slate-700">{alertMessage}</p>
+          <button
+            onClick={() => setAlertMessage(null)}
+            className="px-5 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700"
+          >
+            OK
+          </button>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

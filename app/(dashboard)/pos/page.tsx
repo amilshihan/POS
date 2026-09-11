@@ -12,7 +12,11 @@ export default async function POSPage() {
       .select("*")
       .eq("is_active", true)
       .order("name"),
-    supabase.from("customers").select("id, name, phone, credit_balance").order("name"),
+    supabase
+      .from("customers")
+      .select("id, customer_code, name, phone, credit_balance")
+      .eq("is_active", true)
+      .order("name"),
   ]);
 
   return (

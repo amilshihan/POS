@@ -1,54 +1,401 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { TITLES, combineTitleName, isValidEmail, isValidName, isValidPhone, splitTitle } from "@/lib/validation";
+import { COUNTRY_CODES, DEFAULT_COUNTRY_CODE, combinePhone, splitPhone } from "@/lib/countries";
 
 type Customer = {
   id: string;
+  customer_code: string;
   name: string;
   phone: string | null;
   address: string | null;
+  nic: string | null;
+  company_name: string | null;
+  email: string | null;
+  tax_number: string | null;
+  city: string | null;
+  is_active: boolean;
   credit_limit: number;
+  credit_period_days: number;
   credit_balance: number;
+  guarantor_name: string | null;
+  guarantor_nic: string | null;
+  guarantor_mobile: string | null;
 };
+
+const PAGE_SIZE = 20;
+
+function FieldIcon({ path, className }: { path: ReactNode; className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className={className}>
+      {path}
+    </svg>
+  );
+}
+
+const IconUserPlus = ({ className }: { className?: string }) => (
+  <FieldIcon
+    className={className}
+    path={
+      <>
+        <circle cx="8" cy="7" r="3" />
+        <path d="M2.5 17c0-3 2.5-5 5.5-5s5.5 2 5.5 5" strokeLinecap="round" />
+        <path d="M16 6v4M14 8h4" strokeLinecap="round" />
+      </>
+    }
+  />
+);
+const IconUser = ({ className }: { className?: string }) => (
+  <FieldIcon
+    className={className}
+    path={
+      <>
+        <circle cx="10" cy="6.5" r="3" />
+        <path d="M3.5 17c0-3.3 2.9-6 6.5-6s6.5 2.7 6.5 6" strokeLinecap="round" />
+      </>
+    }
+  />
+);
+const IconGlobe = ({ className }: { className?: string }) => (
+  <FieldIcon
+    className={className}
+    path={
+      <>
+        <circle cx="10" cy="10" r="7" />
+        <path d="M3 10h14M10 3c2.2 2 3.3 4.4 3.3 7s-1.1 5-3.3 7c-2.2-2-3.3-4.4-3.3-7s1.1-5 3.3-7Z" />
+      </>
+    }
+  />
+);
+const IconPhone = ({ className }: { className?: string }) => (
+  <FieldIcon
+    className={className}
+    path={
+      <path
+        d="M4 3.5h2.5L8 7l-1.7 1.3a8 8 0 0 0 5.4 5.4L13 12l3.5 1.5V16a1.5 1.5 0 0 1-1.6 1.5A13 13 0 0 1 3 5.6 1.5 1.5 0 0 1 4 3.5Z"
+        strokeLinejoin="round"
+      />
+    }
+  />
+);
+const IconIdCard = ({ className }: { className?: string }) => (
+  <FieldIcon
+    className={className}
+    path={
+      <>
+        <rect x="2.5" y="4.5" width="15" height="11" rx="1.5" />
+        <circle cx="7" cy="10" r="1.6" />
+        <path d="M5.3 13.5c.3-1.1 1.3-1.8 1.7-1.8s1.4.7 1.7 1.8M11.5 8h4M11.5 11h4" strokeLinecap="round" />
+      </>
+    }
+  />
+);
+const IconBuilding = ({ className }: { className?: string }) => (
+  <FieldIcon
+    className={className}
+    path={
+      <>
+        <rect x="4" y="2.5" width="9" height="15" rx="1" />
+        <path d="M6.5 5.5h1M9.5 5.5h1M6.5 8.5h1M9.5 8.5h1M6.5 11.5h1M9.5 11.5h1M7.5 17.5V15h2v2.5" strokeLinecap="round" />
+      </>
+    }
+  />
+);
+const IconMail = ({ className }: { className?: string }) => (
+  <FieldIcon
+    className={className}
+    path={
+      <>
+        <rect x="2.5" y="4.5" width="15" height="11" rx="1.5" />
+        <path d="M3 5.5 10 11l7-5.5" strokeLinecap="round" strokeLinejoin="round" />
+      </>
+    }
+  />
+);
+const IconMapPin = ({ className }: { className?: string }) => (
+  <FieldIcon
+    className={className}
+    path={
+      <>
+        <path d="M10 17.5S15.5 12.4 15.5 8.5a5.5 5.5 0 1 0-11 0c0 3.9 5.5 9 5.5 9Z" strokeLinejoin="round" />
+        <circle cx="10" cy="8.5" r="2" />
+      </>
+    }
+  />
+);
+const IconFileText = ({ className }: { className?: string }) => (
+  <FieldIcon
+    className={className}
+    path={
+      <>
+        <path d="M5 2.5h7l3 3V17a.5.5 0 0 1-.5.5h-9A.5.5 0 0 1 5 17V2.5Z" strokeLinejoin="round" />
+        <path d="M7 10h6M7 13h6" strokeLinecap="round" />
+      </>
+    }
+  />
+);
+const IconUsers = ({ className }: { className?: string }) => (
+  <FieldIcon
+    className={className}
+    path={
+      <>
+        <circle cx="7.5" cy="7" r="2.7" />
+        <path d="M2 17c0-2.8 2.5-5 5.5-5s5.5 2.2 5.5 5" strokeLinecap="round" />
+        <circle cx="14" cy="7.5" r="2.2" />
+        <path d="M13 12.3c2.4.4 4 2.2 4 4.7" strokeLinecap="round" />
+      </>
+    }
+  />
+);
+const IconCoins = ({ className }: { className?: string }) => (
+  <FieldIcon
+    className={className}
+    path={
+      <>
+        <ellipse cx="7.5" cy="6" rx="4.5" ry="2.3" />
+        <path d="M3 6v3.5c0 1.3 2 2.3 4.5 2.3s4.5-1 4.5-2.3V6" strokeLinecap="round" />
+        <path d="M3 9.5V13c0 1.3 2 2.3 4.5 2.3s4.5-1 4.5-2.3V9.5" strokeLinecap="round" />
+        <ellipse cx="13.5" cy="10.5" rx="4" ry="2" />
+        <path d="M9.5 10.5v3c0 1.1 1.8 2 4 2s4-.9 4-2v-3" strokeLinecap="round" />
+      </>
+    }
+  />
+);
+const IconShield = ({ className }: { className?: string }) => (
+  <FieldIcon
+    className={className}
+    path={
+      <>
+        <path d="M10 2.5 16 5v5c0 4.2-2.7 7-6 8-3.3-1-6-3.8-6-8V5l6-2.5Z" strokeLinejoin="round" />
+        <path d="M7.3 9.7 9.2 11.6 12.9 7.9" strokeLinecap="round" strokeLinejoin="round" />
+      </>
+    }
+  />
+);
+const IconInfo = ({ className }: { className?: string }) => (
+  <FieldIcon
+    className={className}
+    path={
+      <>
+        <circle cx="10" cy="10" r="7" />
+        <path d="M10 9v4.5" strokeLinecap="round" />
+        <circle cx="10" cy="6.5" r="0.9" fill="currentColor" stroke="none" />
+      </>
+    }
+  />
+);
+const IconCalendar = ({ className }: { className?: string }) => (
+  <FieldIcon
+    className={className}
+    path={
+      <>
+        <rect x="3" y="4" width="14" height="13" rx="1.5" />
+        <path d="M3 8h14M7 2.5v3M13 2.5v3" strokeLinecap="round" />
+      </>
+    }
+  />
+);
+const IconChevronDown = ({ className }: { className?: string }) => (
+  <FieldIcon className={className} path={<path d="M5 7.5 10 12.5 15 7.5" strokeLinecap="round" strokeLinejoin="round" />} />
+);
+const IconSave = ({ className }: { className?: string }) => (
+  <FieldIcon
+    className={className}
+    path={
+      <>
+        <path d="M4 3h9l3.5 3.5V16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" strokeLinejoin="round" />
+        <path d="M6.5 3v4.5h6V3M6.5 17v-5h7v5" strokeLinejoin="round" />
+      </>
+    }
+  />
+);
 
 export default function CustomersClient({ initialCustomers }: { initialCustomers: Customer[] }) {
   const router = useRouter();
   const supabase = createClient();
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [page, setPage] = useState(1);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: "", phone: "", address: "", credit_limit: "0" });
+  const [form, setForm] = useState({
+    id: "",
+    title: "",
+    name: "",
+    phoneCountry: DEFAULT_COUNTRY_CODE,
+    phone: "",
+    address: "",
+    nic: "",
+    company_name: "",
+    email: "",
+    tax_number: "",
+    city: "",
+    is_active: true,
+    credit_limit: "0",
+    credit_period_days: "0",
+    guarantor_name: "",
+    guarantor_nic: "",
+    guarantor_mobile: "",
+  });
+  const [showCreditSection, setShowCreditSection] = useState(false);
+  const [showGuarantorSection, setShowGuarantorSection] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [payFor, setPayFor] = useState<Customer | null>(null);
   const [payAmount, setPayAmount] = useState("");
-
-  const filtered = initialCustomers.filter(
-    (c) =>
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.phone?.toLowerCase().includes(search.toLowerCase())
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [confirmDialog, setConfirmDialog] = useState<{ message: string; onConfirm: () => void } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteResult, setDeleteResult] = useState<{ deleted: number; failed: number; errors: string[] } | null>(
+    null
   );
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
+
+  const filtered = initialCustomers.filter((c) => {
+    const q = search.toLowerCase();
+    const matchesSearch =
+      !q ||
+      c.name.toLowerCase().includes(q) ||
+      c.phone?.toLowerCase().includes(q) ||
+      c.customer_code.toLowerCase().includes(q) ||
+      c.email?.toLowerCase().includes(q);
+    const matchesStatus = statusFilter === "all" || (statusFilter === "active" ? c.is_active : !c.is_active);
+    return matchesSearch && matchesStatus;
+  });
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  function clearFilters() {
+    setSearch("");
+    setStatusFilter("all");
+    setPage(1);
+  }
+
+  function openNew() {
+    setForm({
+      id: "",
+      title: "",
+      name: "",
+      phoneCountry: DEFAULT_COUNTRY_CODE,
+      phone: "",
+      address: "",
+      nic: "",
+      company_name: "",
+      email: "",
+      tax_number: "",
+      city: "",
+      is_active: true,
+      credit_limit: "0",
+      credit_period_days: "0",
+      guarantor_name: "",
+      guarantor_nic: "",
+      guarantor_mobile: "",
+    });
+    setShowCreditSection(false);
+    setShowGuarantorSection(false);
+    setError(null);
+    setShowForm(true);
+  }
+
+  function openEdit(c: Customer) {
+    const { country, local } = splitPhone(c.phone);
+    const { title, name } = splitTitle(c.name);
+    setForm({
+      id: c.id,
+      title,
+      name,
+      phoneCountry: country,
+      phone: local,
+      address: c.address ?? "",
+      nic: c.nic ?? "",
+      company_name: c.company_name ?? "",
+      email: c.email ?? "",
+      tax_number: c.tax_number ?? "",
+      city: c.city ?? "",
+      is_active: c.is_active,
+      credit_limit: String(c.credit_limit),
+      credit_period_days: String(c.credit_period_days ?? 0),
+      guarantor_name: c.guarantor_name ?? "",
+      guarantor_nic: c.guarantor_nic ?? "",
+      guarantor_mobile: c.guarantor_mobile ?? "",
+    });
+    setShowCreditSection(c.credit_limit > 0 || c.credit_period_days > 0);
+    setShowGuarantorSection(Boolean(c.guarantor_name || c.guarantor_nic || c.guarantor_mobile));
+    setError(null);
+    setShowForm(true);
+  }
 
   async function handleSave() {
     if (!form.name.trim()) {
       setError("Customer name is required.");
       return;
     }
+    if (!isValidName(form.name)) {
+      setAlertMessage("The name you have entered is incorrect.");
+      return;
+    }
+    const fullPhone = combinePhone(form.phoneCountry, form.phone);
+    if (fullPhone && !isValidPhone(fullPhone)) {
+      setAlertMessage("The mobile number you have entered is incorrect.");
+      return;
+    }
+    if (form.email.trim() && !isValidEmail(form.email)) {
+      setAlertMessage("The email address you have entered is incorrect.");
+      return;
+    }
+    if (form.guarantor_mobile.trim() && !isValidPhone(form.guarantor_mobile)) {
+      setAlertMessage("The guarantor mobile number you have entered is incorrect.");
+      return;
+    }
+    setError(null);
     setSaving(true);
-    const { error } = await supabase.from("customers").insert({
-      name: form.name,
-      phone: form.phone || null,
+    const payload = {
+      name: combineTitleName(form.title, form.name),
+      phone: fullPhone || null,
       address: form.address || null,
+      nic: form.nic.trim() || null,
+      company_name: form.company_name.trim() || null,
+      email: form.email.trim() || null,
+      tax_number: form.tax_number.trim() || null,
+      city: form.city.trim() || null,
+      is_active: form.is_active,
       credit_limit: Number(form.credit_limit),
-    });
+      credit_period_days: Number(form.credit_period_days) || 0,
+      guarantor_name: form.guarantor_name.trim() || null,
+      guarantor_nic: form.guarantor_nic.trim() || null,
+      guarantor_mobile: form.guarantor_mobile.trim() || null,
+    };
+    const { error } = form.id
+      ? await supabase.from("customers").update(payload).eq("id", form.id)
+      : await supabase.from("customers").insert(payload);
     setSaving(false);
     if (error) {
       setError(error.message);
       return;
     }
     setShowForm(false);
-    setForm({ name: "", phone: "", address: "", credit_limit: "0" });
+    setForm({
+      id: "",
+      title: "",
+      name: "",
+      phoneCountry: DEFAULT_COUNTRY_CODE,
+      phone: "",
+      address: "",
+      nic: "",
+      company_name: "",
+      email: "",
+      tax_number: "",
+      city: "",
+      is_active: true,
+      credit_limit: "0",
+      credit_period_days: "0",
+      guarantor_name: "",
+      guarantor_nic: "",
+      guarantor_mobile: "",
+    });
     router.refresh();
   }
 
@@ -77,43 +424,247 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
     router.refresh();
   }
 
+  function friendlyDeleteError(name: string, error: { code?: string; message: string }): string {
+    if (error.code === "23503") {
+      return `Can't delete "${name}" — they have sales, payment, or cheque history.`;
+    }
+    return `${name}: ${error.message}`;
+  }
+
+  function toggleSelected(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds((prev) => {
+      const allSelected = paginated.length > 0 && paginated.every((c) => prev.has(c.id));
+      const next = new Set(prev);
+      paginated.forEach((c) => (allSelected ? next.delete(c.id) : next.add(c.id)));
+      return next;
+    });
+  }
+
+  function handleDeleteOne(c: Customer) {
+    setConfirmDialog({
+      message: `Delete "${c.name}"? This can't be undone.`,
+      onConfirm: async () => {
+        setDeleting(true);
+        const { error } = await supabase.from("customers").delete().eq("id", c.id);
+        setDeleting(false);
+        if (error) {
+          setDeleteResult({ deleted: 0, failed: 1, errors: [friendlyDeleteError(c.name, error)] });
+        } else {
+          setDeleteResult(null);
+          setSelectedIds((prev) => {
+            const next = new Set(prev);
+            next.delete(c.id);
+            return next;
+          });
+        }
+        router.refresh();
+      },
+    });
+  }
+
+  function handleDeleteSelected() {
+    const targets = initialCustomers.filter((c) => selectedIds.has(c.id));
+    if (targets.length === 0) return;
+    setConfirmDialog({
+      message: `Delete ${targets.length} selected customer(s)? This can't be undone.`,
+      onConfirm: async () => {
+        setDeleting(true);
+        let deleted = 0;
+        const errors: string[] = [];
+        for (const c of targets) {
+          const { error } = await supabase.from("customers").delete().eq("id", c.id);
+          if (error) {
+            errors.push(friendlyDeleteError(c.name, error));
+          } else {
+            deleted++;
+          }
+        }
+        setDeleting(false);
+        setDeleteResult({ deleted, failed: errors.length, errors });
+        setSelectedIds(new Set());
+        router.refresh();
+      },
+    });
+  }
+
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-900">Customers</h1>
-        <button
-          onClick={() => setShowForm(true)}
-          className="rounded-lg bg-blue-600 text-white font-medium px-4 py-2 hover:bg-blue-700 transition"
-        >
-          + Add Customer
-        </button>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Customers</h1>
+          <p className="text-sm text-slate-500">Manage customer profiles, credit limits, and status.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {selectedIds.size > 0 && (
+            <button
+              onClick={handleDeleteSelected}
+              title={`Delete ${selectedIds.size} selected customer(s)`}
+              aria-label="Delete Selected"
+              className="relative w-10 h-10 flex items-center justify-center rounded-lg border border-red-300 text-red-600 hover:bg-red-50"
+            >
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5">
+                <path
+                  d="M4 6h12M8 6V4.5A1.5 1.5 0 0 1 9.5 3h1A1.5 1.5 0 0 1 12 4.5V6m2 0-.6 9.02A1.5 1.5 0 0 1 11.9 16.5h-3.8a1.5 1.5 0 0 1-1.5-1.48L6 6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-semibold flex items-center justify-center">
+                {selectedIds.size}
+              </span>
+            </button>
+          )}
+          <button
+            onClick={openNew}
+            className="flex items-center gap-2 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm font-medium hover:bg-slate-800 transition"
+          >
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-4 h-4">
+              <circle cx="8" cy="7" r="3" />
+              <path d="M2.5 17c0-3 2.5-5 5.5-5s5.5 2 5.5 5" strokeLinecap="round" />
+              <path d="M16 6v4M14 8h4" strokeLinecap="round" />
+            </svg>
+            Add Customer
+          </button>
+        </div>
       </div>
 
-      <input
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search by name or phone..."
-        className="w-full max-w-sm rounded-lg border border-slate-300 px-3 py-2"
-      />
+      {deleteResult && (
+        <div className="bg-white rounded-xl border border-slate-200 p-3 text-sm space-y-1">
+          <div className="flex items-center justify-between">
+            <span>
+              <span className="text-green-700 font-medium">{deleteResult.deleted} deleted</span>
+              {deleteResult.failed > 0 && (
+                <>
+                  {", "}
+                  <span className="text-red-600 font-medium">{deleteResult.failed} failed</span>
+                </>
+              )}
+            </span>
+            <button onClick={() => setDeleteResult(null)} className="text-slate-400 hover:text-slate-600">
+              ✕
+            </button>
+          </div>
+          {deleteResult.errors.length > 0 && (
+            <ul className="max-h-32 overflow-y-auto text-xs text-red-600 list-disc pl-4 space-y-0.5">
+              {deleteResult.errors.map((e, i) => (
+                <li key={i}>{e}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 font-semibold text-slate-900">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-4 h-4">
+              <path d="M3 5h14M3 10h14M3 15h14" strokeLinecap="round" />
+              <circle cx="7" cy="5" r="1.5" fill="currentColor" stroke="none" />
+              <circle cx="13" cy="10" r="1.5" fill="currentColor" stroke="none" />
+              <circle cx="9" cy="15" r="1.5" fill="currentColor" stroke="none" />
+            </svg>
+            Filters
+          </div>
+          <button
+            onClick={clearFilters}
+            className="text-sm px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50"
+          >
+            Clear
+          </button>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-[1fr_200px] gap-4">
+          <div>
+            <label className="text-xs text-slate-500">Search</label>
+            <div className="relative mt-1">
+              <svg
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              >
+                <circle cx="9" cy="9" r="6" />
+                <path d="M17 17l-3.5-3.5" strokeLinecap="round" />
+              </svg>
+              <input
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                placeholder="Search by name, mobile, email..."
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-slate-500">Status</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as "all" | "active" | "inactive");
+                setPage(1);
+              }}
+              className="w-full mt-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+            >
+              <option value="all">All</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+        </div>
+        <div className="text-right text-xs text-slate-400">{filtered.length} customers</div>
+      </div>
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-slate-600">
             <tr>
+              <th className="px-4 py-2 w-8">
+                <input
+                  type="checkbox"
+                  checked={paginated.length > 0 && paginated.every((c) => selectedIds.has(c.id))}
+                  onChange={toggleSelectAll}
+                />
+              </th>
+              <th className="text-left px-4 py-2 font-medium">Code</th>
+              <th className="text-left px-4 py-2 font-medium">Mobile</th>
               <th className="text-left px-4 py-2 font-medium">Name</th>
-              <th className="text-left px-4 py-2 font-medium">Phone</th>
+              <th className="text-left px-4 py-2 font-medium">Email</th>
+              <th className="text-left px-4 py-2 font-medium">Address</th>
+              <th className="text-left px-4 py-2 font-medium">City</th>
+              <th className="text-left px-4 py-2 font-medium">Tax Number</th>
               <th className="text-right px-4 py-2 font-medium">Credit Limit</th>
+              <th className="text-left px-4 py-2 font-medium">Credit Period</th>
               <th className="text-right px-4 py-2 font-medium">Balance Owed</th>
+              <th className="text-left px-4 py-2 font-medium">Status</th>
               <th className="px-4 py-2"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {filtered.map((c) => (
+            {paginated.map((c) => (
               <tr key={c.id}>
+                <td className="px-4 py-2">
+                  <input type="checkbox" checked={selectedIds.has(c.id)} onChange={() => toggleSelected(c.id)} />
+                </td>
+                <td className="px-4 py-2 text-slate-500 font-mono text-xs">{c.customer_code}</td>
+                <td className="px-4 py-2 text-slate-800 font-medium">{c.phone}</td>
                 <td className="px-4 py-2 text-slate-800">{c.name}</td>
-                <td className="px-4 py-2 text-slate-500">{c.phone}</td>
-                <td className="px-4 py-2 text-right text-slate-600">
-                  ${c.credit_limit.toFixed(2)}
+                <td className="px-4 py-2 text-slate-500">{c.email}</td>
+                <td className="px-4 py-2 text-slate-500">{c.address}</td>
+                <td className="px-4 py-2 text-slate-500">{c.city}</td>
+                <td className="px-4 py-2 text-slate-500">{c.tax_number ?? "—"}</td>
+                <td className="px-4 py-2 text-right text-slate-600">{c.credit_limit.toFixed(2)}</td>
+                <td className="px-4 py-2 text-slate-500">
+                  {c.credit_period_days} {c.credit_period_days === 1 ? "Day" : "Days"}
                 </td>
                 <td
                   className={`px-4 py-2 text-right font-medium ${
@@ -122,74 +673,418 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
                 >
                   ${c.credit_balance.toFixed(2)}
                 </td>
-                <td className="px-4 py-2 text-right">
-                  {c.credit_balance > 0 && (
+                <td className="px-4 py-2">
+                  <span
+                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                      c.is_active ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-500"
+                    }`}
+                  >
+                    {c.is_active ? "Active" : "Inactive"}
+                  </span>
+                </td>
+                <td className="px-4 py-2 text-right whitespace-nowrap">
+                  <div className="flex items-center justify-end gap-2">
                     <button
-                      onClick={() => setPayFor(c)}
-                      className="text-blue-600 hover:underline text-xs font-medium"
+                      onClick={() => openEdit(c)}
+                      title="Edit"
+                      aria-label="Edit"
+                      className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50"
                     >
-                      Record Payment
+                      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-4 h-4">
+                        <path d="M13.5 3.5l3 3L6 17H3v-3L13.5 3.5Z" strokeLinejoin="round" />
+                      </svg>
                     </button>
-                  )}
+                    {c.credit_balance > 0 && (
+                      <button
+                        onClick={() => setPayFor(c)}
+                        className="text-xs px-3 py-1.5 rounded-lg border border-blue-300 text-blue-600 hover:bg-blue-50"
+                      >
+                        Record Payment
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDeleteOne(c)}
+                      className="text-xs px-3 py-1.5 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && (
+            {paginated.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={13} className="px-4 py-8 text-center text-slate-400">
                   No customers found.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
+        <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 text-sm">
+          <span className="text-slate-500">
+            Page {currentPage} · Showing {paginated.length} of {filtered.length}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent"
+            >
+              Prev
+            </button>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent"
+            >
+              Next
+            </button>
+          </div>
+        </div>
       </div>
 
       {showForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-20 p-4">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md space-y-3">
-            <h2 className="font-semibold text-lg text-slate-900">Add Customer</h2>
-            {error && <div className="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{error}</div>}
-            <input
-              placeholder="Name"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2"
-            />
-            <input
-              placeholder="Phone"
-              value={form.phone}
-              onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2"
-            />
-            <input
-              placeholder="Address"
-              value={form.address}
-              onChange={(e) => setForm({ ...form, address: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2"
-            />
-            <div>
-              <label className="text-xs text-slate-500">Credit limit</label>
-              <input
-                type="number"
-                value={form.credit_limit}
-                onChange={(e) => setForm({ ...form, credit_limit: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2"
-              />
+          <div className="bg-white rounded-xl p-6 w-full max-w-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
+                  <IconUserPlus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="font-bold text-lg text-slate-900">
+                    {form.id ? "Edit Customer" : "Add Customer"}
+                  </h2>
+                  <p className="text-sm text-slate-400">
+                    {form.id ? "Update customer details" : "Add new customer"}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowForm(false)}
+                aria-label="Close"
+                className="text-slate-400 hover:text-slate-600 text-xl leading-none"
+              >
+                ×
+              </button>
             </div>
+            {error && <div className="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{error}</div>}
+
+            <div className="flex gap-2">
+              <div className="w-24 shrink-0">
+                <label className="text-sm font-bold text-slate-900">Title</label>
+                <select
+                  value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  className="w-full mt-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-2.5 text-sm"
+                >
+                  <option value="">Title</option>
+                  {TITLES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="w-full">
+                <label className="text-sm font-bold text-slate-900">Name *</label>
+                <div className="relative mt-1">
+                  <IconUser className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    placeholder="Enter customers name"
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 py-2.5 text-sm placeholder:text-slate-400"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <div className="w-40 shrink-0">
+                <label className="text-sm font-bold text-slate-900">Country</label>
+                <div className="relative mt-1">
+                  <IconGlobe className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <select
+                    value={form.phoneCountry}
+                    onChange={(e) => setForm({ ...form, phoneCountry: e.target.value })}
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-2 py-2.5 text-sm"
+                  >
+                    {COUNTRY_CODES.map((c) => (
+                      <option key={c.name} value={c.dialCode}>
+                        {c.name} ({c.dialCode})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="w-full">
+                <label className="text-sm font-bold text-slate-900">Mobile (optional)</label>
+                <div className="relative mt-1">
+                  <IconPhone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="tel"
+                    placeholder="Enter customer mobile number"
+                    value={form.phone}
+                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 py-2.5 text-sm placeholder:text-slate-400"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-bold text-slate-900">NIC (optional)</label>
+              <div className="relative mt-1">
+                <IconIdCard className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  placeholder="Enter customer NIC"
+                  value={form.nic}
+                  onChange={(e) => setForm({ ...form, nic: e.target.value })}
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 py-2.5 text-sm placeholder:text-slate-400"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-bold text-slate-900">Company Name (optional)</label>
+              <div className="relative mt-1">
+                <IconBuilding className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  placeholder="Enter company name"
+                  value={form.company_name}
+                  onChange={(e) => setForm({ ...form, company_name: e.target.value })}
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 py-2.5 text-sm placeholder:text-slate-400"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-bold text-slate-900">Email (optional)</label>
+              <div className="relative mt-1">
+                <IconMail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  placeholder="Enter customer email address"
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 py-2.5 text-sm placeholder:text-slate-400"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-bold text-slate-900">Address (optional)</label>
+              <div className="relative mt-1">
+                <IconMapPin className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+                <textarea
+                  placeholder="Street, area, etc."
+                  value={form.address}
+                  onChange={(e) => setForm({ ...form, address: e.target.value })}
+                  rows={3}
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 py-2.5 text-sm placeholder:text-slate-400"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <div className="w-1/2">
+                <label className="text-sm font-bold text-slate-900">City (optional)</label>
+                <div className="relative mt-1">
+                  <IconBuilding className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={form.city}
+                    onChange={(e) => setForm({ ...form, city: e.target.value })}
+                    placeholder="e.g. Colombo"
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 py-2.5 text-sm placeholder:text-slate-400"
+                  />
+                </div>
+              </div>
+              <div className="w-1/2">
+                <label className="text-sm font-bold text-slate-900">Tax Number (optional)</label>
+                <div className="relative mt-1">
+                  <IconFileText className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={form.tax_number}
+                    onChange={(e) => setForm({ ...form, tax_number: e.target.value })}
+                    placeholder="VAT / TIN"
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 py-2.5 text-sm placeholder:text-slate-400"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between border border-slate-200 rounded-xl p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
+                  <IconUsers className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-base font-bold text-slate-900">Active</p>
+                  <p className="text-sm text-slate-400">Inactive customers cannot be selected in POS.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={form.is_active}
+                onClick={() => setForm({ ...form, is_active: !form.is_active })}
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                  form.is_active ? "bg-blue-600" : "bg-slate-300"
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    form.is_active ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="border border-slate-200 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setShowCreditSection((v) => !v)}
+                className="w-full flex items-center justify-between p-4"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
+                    <IconCoins className="w-5 h-5" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-base font-bold text-slate-900">Financial / Credit (optional)</p>
+                    <p className="text-sm text-slate-400">Set credit limits, payment terms, etc.</p>
+                  </div>
+                </div>
+                <IconChevronDown
+                  className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${showCreditSection ? "rotate-180" : ""}`}
+                />
+              </button>
+              {showCreditSection && (
+                <div className="px-4 pb-4 space-y-3">
+                  <div className="flex items-start gap-2 bg-blue-50 rounded-lg px-3 py-2.5">
+                    <IconInfo className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
+                    <p className="text-sm text-slate-600">
+                      If you don&apos;t use credit sales, leave defaults (0.00 and 0 days).
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="w-1/2">
+                      <label className="text-sm font-bold text-slate-900">Credit limit</label>
+                      <div className="flex mt-1 rounded-lg border border-slate-200 overflow-hidden">
+                        <span className="flex items-center px-3 bg-slate-100 text-sm text-slate-600 border-r border-slate-200">
+                          LKR
+                        </span>
+                        <input
+                          type="number"
+                          value={form.credit_limit}
+                          onChange={(e) => setForm({ ...form, credit_limit: e.target.value })}
+                          className="w-full bg-slate-50 px-3 py-2.5 text-sm"
+                        />
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1">Maximum credit amount for this customer.</p>
+                    </div>
+                    <div className="w-1/2">
+                      <label className="text-sm font-bold text-slate-900">Credit period (days)</label>
+                      <div className="relative mt-1">
+                        <IconCalendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="number"
+                          value={form.credit_period_days}
+                          onChange={(e) => setForm({ ...form, credit_period_days: e.target.value })}
+                          className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 py-2.5 text-sm"
+                        />
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1">Allowed credit period in days.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="border border-slate-200 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setShowGuarantorSection((v) => !v)}
+                className="w-full flex items-center justify-between p-4"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
+                    <IconShield className="w-5 h-5" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-base font-bold text-slate-900">Guarantor Details (optional)</p>
+                    <p className="text-sm text-slate-400">
+                    Add guarantor information if <span className="font-semibold text-slate-500">required</span>.
+                  </p>
+                  </div>
+                </div>
+                <IconChevronDown
+                  className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${showGuarantorSection ? "rotate-180" : ""}`}
+                />
+              </button>
+              {showGuarantorSection && (
+                <div className="px-4 pb-4 space-y-3">
+                  <div className="flex gap-2">
+                    <div className="w-1/2">
+                      <label className="text-sm font-bold text-slate-900">Guarantor name</label>
+                      <div className="relative mt-1">
+                        <IconUser className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                          placeholder="Enter guarantor name"
+                          value={form.guarantor_name}
+                          onChange={(e) => setForm({ ...form, guarantor_name: e.target.value })}
+                          className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 py-2.5 text-sm placeholder:text-slate-400"
+                        />
+                      </div>
+                    </div>
+                    <div className="w-1/2">
+                      <label className="text-sm font-bold text-slate-900">Guarantor NIC</label>
+                      <div className="relative mt-1">
+                        <IconIdCard className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                          placeholder="Enter guarantor NIC"
+                          value={form.guarantor_nic}
+                          onChange={(e) => setForm({ ...form, guarantor_nic: e.target.value })}
+                          className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 py-2.5 text-sm placeholder:text-slate-400"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-bold text-slate-900">Guarantor mobile</label>
+                    <div className="relative mt-1">
+                      <IconPhone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="tel"
+                        placeholder="Enter guarantor mobile number"
+                        value={form.guarantor_mobile}
+                        onChange={(e) => setForm({ ...form, guarantor_mobile: e.target.value })}
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 py-2.5 text-sm placeholder:text-slate-400"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <hr className="border-slate-200" />
+
             <div className="flex justify-end gap-2 pt-2">
               <button
                 onClick={() => setShowForm(false)}
-                className="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100"
+                className="px-5 py-2.5 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-60"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-slate-900 text-white font-semibold hover:bg-slate-800 disabled:opacity-60"
               >
-                {saving ? "Saving..." : "Save"}
+                <IconSave className="w-4 h-4" />
+                {saving ? "Saving..." : form.id ? "Save Changes" : "Save Customer"}
               </button>
             </div>
           </div>
@@ -223,6 +1118,52 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
                 Record
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {confirmDialog && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-30 p-4">
+          <div className="bg-white rounded-xl p-5 w-full max-w-sm space-y-4">
+            <p className="text-sm text-slate-700">{confirmDialog.message}</p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmDialog(null)}
+                disabled={deleting}
+                className="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  await confirmDialog.onConfirm();
+                  setConfirmDialog(null);
+                }}
+                disabled={deleting}
+                className="px-4 py-2 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 disabled:opacity-60"
+              >
+                {deleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {alertMessage && (
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-40 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setAlertMessage(null);
+          }}
+        >
+          <div className="bg-white rounded-xl p-5 w-full max-w-sm space-y-4 text-center">
+            <p className="text-sm text-slate-700">{alertMessage}</p>
+            <button
+              onClick={() => setAlertMessage(null)}
+              className="px-5 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700"
+            >
+              OK
+            </button>
           </div>
         </div>
       )}
