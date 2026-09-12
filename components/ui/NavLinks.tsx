@@ -8,6 +8,7 @@ const CASHIER_LINKS = [
   { href: "/pos", label: "New Sale" },
   { href: "/inventory", label: "Products" },
   { href: "/customers", label: "Customers" },
+  { href: "/vehicles", label: "Vehicle" },
   { href: "/cheques", label: "Cheques" },
 ];
 
