@@ -12,6 +12,12 @@ const CASHIER_LINKS = [
   { href: "/cheques", label: "Cheques" },
 ];
 
+const WORKSHOP_LINKS = [
+  { href: "/workshop/job-cards", label: "Work Orders" },
+  { href: "/workshop/service-types", label: "Service Types" },
+  { href: "/workshop/master-data", label: "Master Data (Vehicles)" },
+];
+
 const ADMIN_LINKS = [
   { href: "/suppliers", label: "Suppliers" },
   { href: "/purchases/new", label: "New Purchase" },
@@ -33,6 +39,14 @@ export default function NavLinks({ admin }: { admin: boolean }) {
   return (
     <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
       {CASHIER_LINKS.map((l) => (
+        <Link key={l.href} href={l.href} className={linkClass(l.href)}>
+          {l.label}
+        </Link>
+      ))}
+      <div className="pt-3 pb-1 px-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Workshop
+      </div>
+      {WORKSHOP_LINKS.map((l) => (
         <Link key={l.href} href={l.href} className={linkClass(l.href)}>
           {l.label}
         </Link>

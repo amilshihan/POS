@@ -5,6 +5,23 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { TITLES, combineTitleName, isValidName, isValidPhone } from "@/lib/validation";
 import { COUNTRY_CODES, DEFAULT_COUNTRY_CODE, combinePhone } from "@/lib/countries";
+import {
+  modalTitle,
+  fieldLabel,
+  helperText,
+  requiredMark,
+  inputBase,
+  inputWithIcon,
+  iconLeft,
+  iconLeftTop,
+  btnPrimary,
+  btnSecondary,
+  btnIconSquare,
+  iconActionBtn,
+  iconActionBtnDanger,
+  cardSurface,
+  twoColRow,
+} from "@/lib/ui";
 
 type Customer = { id: string; customer_code: string; name: string };
 type Brand = { id: string; name: string };
@@ -19,10 +36,123 @@ type Vehicle = {
   engine_number: string | null;
   chassis_number: string | null;
   notes: string | null;
-  customers: { customer_code: string; name: string } | null;
+  customers: { customer_code: string; name: string; phone: string | null } | null;
   vehicle_brands: { name: string } | null;
   vehicle_models: { name: string } | null;
 };
+
+function IconCar({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className={className}>
+      <path d="M3 12.5 4.3 8a2 2 0 0 1 1.9-1.4h7.6A2 2 0 0 1 15.7 8l1.3 4.5" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="2" y="12.5" width="16" height="3.5" rx="1" />
+      <circle cx="5.5" cy="16" r="1.3" />
+      <circle cx="14.5" cy="16" r="1.3" />
+    </svg>
+  );
+}
+function IconFilters({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className={className}>
+      <path d="M3 5h14M3 10h14M3 15h14" strokeLinecap="round" />
+      <circle cx="7" cy="5" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="13" cy="10" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="9" cy="15" r="1.5" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+function IconSearch({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className={className}>
+      <circle cx="9" cy="9" r="6" />
+      <path d="M17 17l-3.5-3.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+function IconPencil({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className={className}>
+      <path d="M13.5 3.5l3 3L6 17H3v-3L13.5 3.5Z" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function IconEye({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className={className}>
+      <path d="M2 10s3-5.5 8-5.5S18 10 18 10s-3 5.5-8 5.5S2 10 2 10Z" strokeLinejoin="round" />
+      <circle cx="10" cy="10" r="2.2" />
+    </svg>
+  );
+}
+function IconUser({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className={className}>
+      <circle cx="10" cy="6.5" r="3" />
+      <path d="M3.5 17c0-3.3 2.9-6 6.5-6s6.5 2.7 6.5 6" strokeLinecap="round" />
+    </svg>
+  );
+}
+function IconBuilding({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className={className}>
+      <rect x="4" y="2.5" width="9" height="15" rx="1" />
+      <path
+        d="M6.5 5.5h1M9.5 5.5h1M6.5 8.5h1M9.5 8.5h1M6.5 11.5h1M9.5 11.5h1M7.5 17.5V15h2v2.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+function IconCalendar({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className={className}>
+      <rect x="3" y="4" width="14" height="13" rx="1.5" />
+      <path d="M3 8h14M7 2.5v3M13 2.5v3" strokeLinecap="round" />
+    </svg>
+  );
+}
+function IconEngine({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className={className}>
+      <circle cx="10" cy="11" r="6" />
+      <path d="M10 11 13 8" strokeLinecap="round" />
+      <path d="M7 4.5h6" strokeLinecap="round" />
+    </svg>
+  );
+}
+function IconBarcode({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className={className}>
+      <path d="M3 4v12M6 4v12M8 4v12M11 4v12M13 4v12M16 4v12" strokeLinecap="round" />
+    </svg>
+  );
+}
+function IconFileText({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className={className}>
+      <path d="M5 2.5h7l3 3V17a.5.5 0 0 1-.5.5h-9A.5.5 0 0 1 5 17V2.5Z" strokeLinejoin="round" />
+      <path d="M7 10h6M7 13h6" strokeLinecap="round" />
+    </svg>
+  );
+}
+function IconPlus({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
+      <path d="M10 4v12M4 10h12" strokeLinecap="round" />
+    </svg>
+  );
+}
+function IconTrash({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className={className}>
+      <path
+        d="M4 6h12M8 6V4.5A1.5 1.5 0 0 1 9.5 3h1A1.5 1.5 0 0 1 12 4.5V6m2 0-.6 9.02A1.5 1.5 0 0 1 11.9 16.5h-3.8a1.5 1.5 0 0 1-1.5-1.48L6 6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 const EMPTY_FORM = {
   id: "",
@@ -50,10 +180,13 @@ export default function VehiclesClient({
   const router = useRouter();
   const supabase = createClient();
   const [search, setSearch] = useState("");
+  const [brandFilter, setBrandFilter] = useState("all");
+  const [modelFilter, setModelFilter] = useState("all");
   const [localCustomers, setLocalCustomers] = useState(customers);
   const [localBrands, setLocalBrands] = useState(brands);
   const [localModels, setLocalModels] = useState(models);
 
+  const [viewing, setViewing] = useState<Vehicle | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [error, setError] = useState<string | null>(null);
@@ -84,15 +217,23 @@ export default function VehiclesClient({
 
   const filtered = initialVehicles.filter((v) => {
     const q = search.toLowerCase();
-    if (!q) return true;
-    return (
+    const matchesSearch =
+      !q ||
       v.vehicle_number.toLowerCase().includes(q) ||
       v.customers?.name.toLowerCase().includes(q) ||
       v.customers?.customer_code.toLowerCase().includes(q) ||
       v.vehicle_brands?.name.toLowerCase().includes(q) ||
-      v.vehicle_models?.name.toLowerCase().includes(q)
-    );
+      v.vehicle_models?.name.toLowerCase().includes(q);
+    const matchesBrand = brandFilter === "all" || v.brand_id === brandFilter;
+    const matchesModel = modelFilter === "all" || v.model_id === modelFilter;
+    return matchesSearch && matchesBrand && matchesModel;
   });
+
+  function clearFilters() {
+    setSearch("");
+    setBrandFilter("all");
+    setModelFilter("all");
+  }
 
   const modelsForBrand = localModels.filter((m) => m.brand_id === form.brand_id);
 
@@ -321,11 +462,11 @@ export default function VehiclesClient({
   }
 
   return (
-    <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="p-4 sm:p-6 space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Vehicle</h1>
-          <p className="text-sm text-slate-500">Register and manage customer vehicles.</p>
+          <h1 className="text-2xl font-bold text-ink">Vehicles</h1>
+          <p className="text-sm text-muted">Manage all vehicles registered in your garage.</p>
         </div>
         <div className="flex items-center gap-2">
           {selectedIds.size > 0 && (
@@ -333,50 +474,49 @@ export default function VehiclesClient({
               onClick={handleDeleteSelected}
               title={`Delete ${selectedIds.size} selected vehicle(s)`}
               aria-label="Delete Selected"
-              className="relative w-10 h-10 flex items-center justify-center rounded-lg border border-red-300 text-red-600 hover:bg-red-50"
+              className="relative w-10 h-10 flex items-center justify-center rounded-lg border border-error/30 text-error hover:bg-error-light"
             >
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5">
-                <path
-                  d="M4 6h12M8 6V4.5A1.5 1.5 0 0 1 9.5 3h1A1.5 1.5 0 0 1 12 4.5V6m2 0-.6 9.02A1.5 1.5 0 0 1 11.9 16.5h-3.8a1.5 1.5 0 0 1-1.5-1.48L6 6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-semibold flex items-center justify-center">
+              <IconTrash className="w-5 h-5" />
+              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-error text-white text-[10px] font-semibold flex items-center justify-center">
                 {selectedIds.size}
               </span>
             </button>
           )}
-          <button
-            onClick={openNew}
-            className="flex items-center gap-2 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm font-medium hover:bg-slate-800 transition"
-          >
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4">
-              <path d="M10 4v12M4 10h12" strokeLinecap="round" />
-            </svg>
-            Add Vehicle
+          <button onClick={openNew} className={btnPrimary}>
+            <IconPlus className="w-4 h-4" />
+            New Vehicle
           </button>
         </div>
       </div>
 
+      <div className={`${cardSurface} p-4 w-full sm:w-64 flex items-center justify-between`}>
+        <div>
+          <p className="text-xs font-medium text-accent">Registered Vehicles</p>
+          <p className="text-2xl font-bold text-ink mt-1">{initialVehicles.length}</p>
+        </div>
+        <div className="w-10 h-10 rounded-lg bg-accent-light flex items-center justify-center text-accent shrink-0">
+          <IconCar className="w-5 h-5" />
+        </div>
+      </div>
+
       {deleteResult && (
-        <div className="bg-white rounded-xl border border-slate-200 p-3 text-sm space-y-1">
+        <div className={`${cardSurface} p-3 text-sm space-y-1`}>
           <div className="flex items-center justify-between">
             <span>
-              <span className="text-green-700 font-medium">{deleteResult.deleted} deleted</span>
+              <span className="text-accent font-medium">{deleteResult.deleted} deleted</span>
               {deleteResult.failed > 0 && (
                 <>
                   {", "}
-                  <span className="text-red-600 font-medium">{deleteResult.failed} failed</span>
+                  <span className="text-error font-medium">{deleteResult.failed} failed</span>
                 </>
               )}
             </span>
-            <button onClick={() => setDeleteResult(null)} className="text-slate-400 hover:text-slate-600">
+            <button onClick={() => setDeleteResult(null)} className="text-muted hover:text-ink">
               ✕
             </button>
           </div>
           {deleteResult.errors.length > 0 && (
-            <ul className="max-h-32 overflow-y-auto text-xs text-red-600 list-disc pl-4 space-y-0.5">
+            <ul className="max-h-32 overflow-y-auto text-xs text-error list-disc pl-4 space-y-0.5">
               {deleteResult.errors.map((e, i) => (
                 <li key={i}>{e}</li>
               ))}
@@ -385,16 +525,68 @@ export default function VehiclesClient({
         </div>
       )}
 
-      <input
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search by vehicle number, customer, brand, or model..."
-        className="w-full max-w-md rounded-lg border border-slate-300 px-3 py-2"
-      />
+      <div className={`${cardSurface} p-4 space-y-4`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 font-semibold text-ink">
+            <IconFilters className="w-4 h-4" />
+            Filters
+          </div>
+          <button
+            onClick={clearFilters}
+            className="text-sm px-3 py-1.5 rounded-lg border border-input text-muted hover:bg-surface hover:text-ink"
+          >
+            Clear
+          </button>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-[1fr_200px_200px] gap-4">
+          <div>
+            <label className={helperText}>Search</label>
+            <div className="relative mt-1">
+              <IconSearch className={iconLeft} />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by customer name, mobile, or vehicle no..."
+                className={inputWithIcon}
+              />
+            </div>
+          </div>
+          <div>
+            <label className={helperText}>Brand</label>
+            <select
+              value={brandFilter}
+              onChange={(e) => setBrandFilter(e.target.value)}
+              className={`${inputBase} mt-1`}
+            >
+              <option value="all">All</option>
+              {localBrands.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={helperText}>Model</label>
+            <select
+              value={modelFilter}
+              onChange={(e) => setModelFilter(e.target.value)}
+              className={`${inputBase} mt-1`}
+            >
+              <option value="all">All</option>
+              {localModels.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden overflow-x-auto">
+      <div className={`${cardSurface} overflow-hidden overflow-x-auto`}>
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-600">
+          <thead className="bg-surface text-muted">
             <tr>
               <th className="px-4 py-2 w-8">
                 <input
@@ -403,47 +595,54 @@ export default function VehiclesClient({
                   onChange={toggleSelectAll}
                 />
               </th>
-              <th className="text-left px-4 py-2 font-medium">Vehicle Number</th>
-              <th className="text-left px-4 py-2 font-medium">Customer</th>
+              <th className="text-left px-4 py-2 font-medium">Vehicle No</th>
               <th className="text-left px-4 py-2 font-medium">Brand</th>
               <th className="text-left px-4 py-2 font-medium">Model</th>
               <th className="text-left px-4 py-2 font-medium">Year</th>
-              <th className="text-left px-4 py-2 font-medium">Engine Number</th>
-              <th className="text-left px-4 py-2 font-medium">Chassis Number</th>
+              <th className="text-left px-4 py-2 font-medium">Engine No</th>
+              <th className="text-left px-4 py-2 font-medium">Chassis No</th>
+              <th className="text-left px-4 py-2 font-medium">Customer</th>
               <th className="px-4 py-2"></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-card">
             {filtered.map((v) => (
               <tr key={v.id}>
                 <td className="px-4 py-2">
                   <input type="checkbox" checked={selectedIds.has(v.id)} onChange={() => toggleSelected(v.id)} />
                 </td>
-                <td className="px-4 py-2 text-slate-800 font-medium">{v.vehicle_number}</td>
-                <td className="px-4 py-2 text-slate-600">
-                  {v.customers ? `${v.customers.customer_code} — ${v.customers.name}` : "—"}
+                <td className="px-4 py-2 text-ink font-bold">{v.vehicle_number}</td>
+                <td className="px-4 py-2 text-ink">{v.vehicle_brands?.name ?? "—"}</td>
+                <td className="px-4 py-2 text-ink">{v.vehicle_models?.name ?? "—"}</td>
+                <td className="px-4 py-2 text-muted">{v.year ?? "—"}</td>
+                <td className="px-4 py-2 text-muted">{v.engine_number ?? "—"}</td>
+                <td className="px-4 py-2 text-muted">{v.chassis_number ?? "—"}</td>
+                <td className="px-4 py-2 text-ink">
+                  {v.customers ? `${v.customers.name}${v.customers.phone ? ` - ${v.customers.phone}` : ""}` : "—"}
                 </td>
-                <td className="px-4 py-2 text-slate-500">{v.vehicle_brands?.name ?? "—"}</td>
-                <td className="px-4 py-2 text-slate-500">{v.vehicle_models?.name ?? "—"}</td>
-                <td className="px-4 py-2 text-slate-500">{v.year ?? "—"}</td>
-                <td className="px-4 py-2 text-slate-500">{v.engine_number ?? "—"}</td>
-                <td className="px-4 py-2 text-slate-500">{v.chassis_number ?? "—"}</td>
                 <td className="px-4 py-2 text-right whitespace-nowrap">
-                  <button onClick={() => openEdit(v)} className="text-blue-600 hover:underline text-xs font-medium">
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDeleteOne(v)}
-                    className="ml-3 text-red-600 hover:underline text-xs font-medium"
-                  >
-                    Delete
-                  </button>
+                  <div className="flex items-center justify-end gap-2">
+                    <button onClick={() => openEdit(v)} title="Edit" aria-label="Edit" className={iconActionBtn}>
+                      <IconPencil className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => setViewing(v)} title="View" aria-label="View" className={iconActionBtn}>
+                      <IconEye className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteOne(v)}
+                      title="Delete"
+                      aria-label="Delete"
+                      className={iconActionBtnDanger}
+                    >
+                      <IconTrash className="w-4 h-4" />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={9} className="px-4 py-8 text-center text-muted">
                   No vehicles found.
                 </td>
               </tr>
@@ -453,171 +652,208 @@ export default function VehiclesClient({
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-20 p-4">
-          <div className="bg-white rounded-xl p-6 w-full max-w-lg space-y-3 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-ink/40 flex items-center justify-center z-20 p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8 w-full max-w-lg space-y-5 max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between">
-              <h2 className="font-bold text-lg text-slate-900">{form.id ? "Edit Vehicle" : "Add Vehicle"}</h2>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-accent-light flex items-center justify-center text-accent shrink-0">
+                  <IconCar className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className={modalTitle}>{form.id ? "Edit Vehicle" : "Add Vehicle"}</h2>
+                  <p className="text-sm text-muted">
+                    {form.id ? "Update vehicle details" : "Add a new vehicle to the system"}
+                  </p>
+                </div>
+              </div>
               <button
                 onClick={() => setShowForm(false)}
                 aria-label="Close"
-                className="text-slate-400 hover:text-slate-600 text-xl leading-none"
+                className="text-muted hover:text-ink text-xl leading-none"
               >
                 ×
               </button>
             </div>
-            {error && <div className="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{error}</div>}
+            {error && <div className="rounded-lg bg-error-light text-error text-sm px-3 py-2">{error}</div>}
 
             <div>
-              <label className="text-sm font-bold text-slate-900">Customer *</label>
+              <label className={fieldLabel}>
+                Customer <span className={requiredMark}>*</span>
+              </label>
               <div className="flex gap-2 mt-1">
-                <select
-                  value={form.customer_id}
-                  onChange={(e) => setForm({ ...form, customer_id: e.target.value })}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
-                >
-                  <option value="">Select customer</option>
-                  {localCustomers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.customer_code} — {c.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative w-full">
+                  <IconUser className={iconLeft} />
+                  <select
+                    value={form.customer_id}
+                    onChange={(e) => setForm({ ...form, customer_id: e.target.value })}
+                    className={inputWithIcon}
+                  >
+                    <option value="">Select customer</option>
+                    {localCustomers.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.customer_code} — {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <button
                   type="button"
                   onClick={() => setShowAddCustomer(true)}
                   title="Add new customer"
-                  className="w-11 shrink-0 flex items-center justify-center rounded-lg bg-slate-900 text-white hover:bg-slate-800"
+                  className={btnIconSquare}
                 >
-                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4">
-                    <path d="M10 4v12M4 10h12" strokeLinecap="round" />
-                  </svg>
+                  <IconPlus className="w-4 h-4" />
                 </button>
               </div>
+              <p className={`${helperText} mt-1`}>Select the customer who owns this vehicle</p>
             </div>
 
             <div>
-              <label className="text-sm font-bold text-slate-900">Vehicle Number *</label>
-              <input
-                placeholder="Enter vehicle number"
-                value={form.vehicle_number}
-                onChange={(e) => setForm({ ...form, vehicle_number: e.target.value })}
-                className="w-full mt-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm placeholder:text-slate-400"
-              />
+              <label className={fieldLabel}>
+                Vehicle Number <span className={requiredMark}>*</span>
+              </label>
+              <div className="relative mt-1">
+                <IconCar className={iconLeft} />
+                <input
+                  placeholder="Enter vehicle number"
+                  value={form.vehicle_number}
+                  onChange={(e) => setForm({ ...form, vehicle_number: e.target.value })}
+                  className={inputWithIcon}
+                />
+              </div>
+              <p className={`${helperText} mt-1`}>e.g. WP-CA-1234</p>
             </div>
 
-            <div className="flex gap-2">
-              <div className="w-1/2">
-                <label className="text-sm font-bold text-slate-900">Brand *</label>
+            <div className={twoColRow}>
+              <div className="w-full sm:w-1/2">
+                <label className={fieldLabel}>
+                  Brand <span className={requiredMark}>*</span>
+                </label>
                 <div className="flex gap-2 mt-1">
-                  <select
-                    value={form.brand_id}
-                    onChange={(e) => setForm({ ...form, brand_id: e.target.value, model_id: "" })}
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-2.5 text-sm"
-                  >
-                    <option value="">Select vehicle brand</option>
-                    {localBrands.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative w-full">
+                    <IconBuilding className={iconLeft} />
+                    <select
+                      value={form.brand_id}
+                      onChange={(e) => setForm({ ...form, brand_id: e.target.value, model_id: "" })}
+                      className={inputWithIcon}
+                    >
+                      <option value="">Select vehicle brand</option>
+                      {localBrands.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   <button
                     type="button"
                     onClick={() => setShowAddBrand(true)}
                     title="Add new brand"
-                    className="w-11 shrink-0 flex items-center justify-center rounded-lg bg-slate-900 text-white hover:bg-slate-800"
+                    className={btnIconSquare}
                   >
-                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4">
-                      <path d="M10 4v12M4 10h12" strokeLinecap="round" />
-                    </svg>
+                    <IconPlus className="w-4 h-4" />
                   </button>
                 </div>
               </div>
-              <div className="w-1/2">
-                <label className="text-sm font-bold text-slate-900">Model *</label>
+              <div className="w-full sm:w-1/2">
+                <label className={fieldLabel}>
+                  Model <span className={requiredMark}>*</span>
+                </label>
                 <div className="flex gap-2 mt-1">
-                  <select
-                    value={form.model_id}
-                    onChange={(e) => setForm({ ...form, model_id: e.target.value })}
-                    disabled={!form.brand_id}
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-2.5 text-sm disabled:opacity-60"
-                  >
-                    <option value="">Select vehicle model</option>
-                    {modelsForBrand.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative w-full">
+                    <IconCar className={iconLeft} />
+                    <select
+                      value={form.model_id}
+                      onChange={(e) => setForm({ ...form, model_id: e.target.value })}
+                      disabled={!form.brand_id}
+                      className={inputWithIcon}
+                    >
+                      <option value="">Select vehicle model</option>
+                      {modelsForBrand.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   <button
                     type="button"
                     onClick={() => (form.brand_id ? setShowAddModel(true) : setAlertMessage("Please select a brand first."))}
                     title="Add new model"
-                    className="w-11 shrink-0 flex items-center justify-center rounded-lg bg-slate-900 text-white hover:bg-slate-800"
+                    className={btnIconSquare}
                   >
-                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4">
-                      <path d="M10 4v12M4 10h12" strokeLinecap="round" />
-                    </svg>
+                    <IconPlus className="w-4 h-4" />
                   </button>
                 </div>
               </div>
             </div>
 
-            <div className="flex gap-2">
-              <div className="w-1/2">
-                <label className="text-sm font-bold text-slate-900">Year</label>
-                <input
-                  type="number"
-                  placeholder="YYYY"
-                  value={form.year}
-                  onChange={(e) => setForm({ ...form, year: e.target.value })}
-                  className="w-full mt-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm placeholder:text-slate-400"
-                />
+            <div className={twoColRow}>
+              <div className="w-full sm:w-1/2">
+                <label className={fieldLabel}>Year</label>
+                <div className="relative mt-1">
+                  <IconCalendar className={iconLeft} />
+                  <input
+                    type="number"
+                    placeholder="YYYY"
+                    value={form.year}
+                    onChange={(e) => setForm({ ...form, year: e.target.value })}
+                    className={inputWithIcon}
+                  />
+                </div>
+                <p className={`${helperText} mt-1`}>e.g. 2018</p>
               </div>
-              <div className="w-1/2">
-                <label className="text-sm font-bold text-slate-900">Engine Number</label>
-                <input
-                  placeholder="Enter engine number"
-                  value={form.engine_number}
-                  onChange={(e) => setForm({ ...form, engine_number: e.target.value })}
-                  className="w-full mt-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm placeholder:text-slate-400"
-                />
+              <div className="w-full sm:w-1/2">
+                <label className={fieldLabel}>Engine Number</label>
+                <div className="relative mt-1">
+                  <IconEngine className={iconLeft} />
+                  <input
+                    placeholder="Enter engine number"
+                    value={form.engine_number}
+                    onChange={(e) => setForm({ ...form, engine_number: e.target.value })}
+                    className={inputWithIcon}
+                  />
+                </div>
+                <p className={`${helperText} mt-1`}>e.g. G4LA123456</p>
               </div>
             </div>
 
             <div>
-              <label className="text-sm font-bold text-slate-900">Chassis Number</label>
-              <input
-                placeholder="Enter chassis number"
-                value={form.chassis_number}
-                onChange={(e) => setForm({ ...form, chassis_number: e.target.value })}
-                className="w-full mt-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm placeholder:text-slate-400"
-              />
+              <label className={fieldLabel}>Chassis Number</label>
+              <div className="relative mt-1">
+                <IconBarcode className={iconLeft} />
+                <input
+                  placeholder="Enter chassis number"
+                  value={form.chassis_number}
+                  onChange={(e) => setForm({ ...form, chassis_number: e.target.value })}
+                  className={inputWithIcon}
+                />
+              </div>
+              <p className={`${helperText} mt-1`}>e.g. KNAB2511BJT123456</p>
             </div>
 
             <div>
-              <label className="text-sm font-bold text-slate-900">Notes</label>
-              <textarea
-                placeholder="Additional notes about the vehicle"
-                value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                rows={3}
-                className="w-full mt-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm placeholder:text-slate-400"
-              />
+              <label className={fieldLabel}>Notes</label>
+              <div className="relative mt-1">
+                <IconFileText className={iconLeftTop} />
+                <textarea
+                  placeholder="Additional notes about the vehicle (optional)"
+                  value={form.notes}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                  rows={3}
+                  className={inputWithIcon}
+                />
+              </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                onClick={() => setShowForm(false)}
-                className="px-5 py-2.5 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50"
-              >
+            <hr className="border-card" />
+
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-1">
+              <button onClick={() => setShowForm(false)} className={btnSecondary}>
                 Cancel
               </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="px-5 py-2.5 rounded-lg bg-slate-900 text-white font-semibold hover:bg-slate-800 disabled:opacity-60"
-              >
+              <button onClick={handleSave} disabled={saving} className={btnPrimary}>
+                <IconPlus className="w-4 h-4" />
                 {saving ? "Saving..." : form.id ? "Save Changes" : "Add Vehicle"}
               </button>
             </div>
@@ -626,23 +862,23 @@ export default function VehiclesClient({
       )}
 
       {showAddCustomer && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-30 p-4">
-          <div className="bg-white rounded-xl p-6 w-full max-w-sm space-y-3">
+        <div className="fixed inset-0 bg-ink/40 flex items-center justify-center z-30 p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm space-y-3">
             <div className="flex items-start justify-between">
-              <h2 className="font-bold text-lg text-slate-900">Add Customer</h2>
+              <h2 className="text-lg font-semibold text-ink">Add Customer</h2>
               <button
                 onClick={() => setShowAddCustomer(false)}
                 aria-label="Close"
-                className="text-slate-400 hover:text-slate-600 text-xl leading-none"
+                className="text-muted hover:text-ink text-xl leading-none"
               >
                 ×
               </button>
             </div>
-            <div className="flex gap-2">
+            <div className={twoColRow}>
               <select
                 value={qcTitle}
                 onChange={(e) => setQcTitle(e.target.value)}
-                className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2.5 text-sm w-24 shrink-0"
+                className={`${inputBase} w-full sm:w-24 shrink-0`}
               >
                 <option value="">Title</option>
                 {TITLES.map((t) => (
@@ -655,14 +891,14 @@ export default function VehiclesClient({
                 placeholder="Enter customer name"
                 value={qcName}
                 onChange={(e) => setQcName(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm placeholder:text-slate-400"
+                className={inputBase}
               />
             </div>
-            <div className="flex gap-2">
+            <div className={twoColRow}>
               <select
                 value={qcPhoneCountry}
                 onChange={(e) => setQcPhoneCountry(e.target.value)}
-                className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2.5 text-sm w-40 shrink-0"
+                className={`${inputBase} w-full sm:w-40 shrink-0`}
               >
                 {COUNTRY_CODES.map((c) => (
                   <option key={c.name} value={c.dialCode}>
@@ -675,21 +911,14 @@ export default function VehiclesClient({
                 placeholder="Enter customer mobile number"
                 value={qcPhone}
                 onChange={(e) => setQcPhone(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm placeholder:text-slate-400"
+                className={inputBase}
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <button
-                onClick={() => setShowAddCustomer(false)}
-                className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50"
-              >
+              <button onClick={() => setShowAddCustomer(false)} className={btnSecondary}>
                 Cancel
               </button>
-              <button
-                onClick={handleQuickAddCustomer}
-                disabled={qcSaving}
-                className="px-4 py-2 rounded-lg bg-slate-900 text-white font-medium hover:bg-slate-800 disabled:opacity-60"
-              >
+              <button onClick={handleQuickAddCustomer} disabled={qcSaving} className={btnPrimary}>
                 {qcSaving ? "Saving..." : "Save Customer"}
               </button>
             </div>
@@ -698,39 +927,32 @@ export default function VehiclesClient({
       )}
 
       {showAddBrand && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-30 p-4">
-          <div className="bg-white rounded-xl p-6 w-full max-w-sm space-y-3">
+        <div className="fixed inset-0 bg-ink/40 flex items-center justify-center z-30 p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm space-y-3">
             <div className="flex items-start justify-between">
-              <h2 className="font-bold text-lg text-slate-900">Add Brand</h2>
+              <h2 className="text-lg font-semibold text-ink">Add Brand</h2>
               <button
                 onClick={() => setShowAddBrand(false)}
                 aria-label="Close"
-                className="text-slate-400 hover:text-slate-600 text-xl leading-none"
+                className="text-muted hover:text-ink text-xl leading-none"
               >
                 ×
               </button>
             </div>
             <div>
-              <label className="text-sm font-bold text-slate-900">Brand name</label>
+              <label className={fieldLabel}>Brand name</label>
               <input
                 placeholder="e.g. Toyota"
                 value={qbName}
                 onChange={(e) => setQbName(e.target.value)}
-                className="w-full mt-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm placeholder:text-slate-400"
+                className={`${inputBase} mt-1`}
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <button
-                onClick={() => setShowAddBrand(false)}
-                className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50"
-              >
+              <button onClick={() => setShowAddBrand(false)} className={btnSecondary}>
                 Cancel
               </button>
-              <button
-                onClick={handleQuickAddBrand}
-                disabled={qbSaving}
-                className="px-4 py-2 rounded-lg bg-slate-900 text-white font-medium hover:bg-slate-800 disabled:opacity-60"
-              >
+              <button onClick={handleQuickAddBrand} disabled={qbSaving} className={btnPrimary}>
                 {qbSaving ? "Saving..." : "Save Brand"}
               </button>
             </div>
@@ -739,39 +961,32 @@ export default function VehiclesClient({
       )}
 
       {showAddModel && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-30 p-4">
-          <div className="bg-white rounded-xl p-6 w-full max-w-sm space-y-3">
+        <div className="fixed inset-0 bg-ink/40 flex items-center justify-center z-30 p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm space-y-3">
             <div className="flex items-start justify-between">
-              <h2 className="font-bold text-lg text-slate-900">Add Model</h2>
+              <h2 className="text-lg font-semibold text-ink">Add Model</h2>
               <button
                 onClick={() => setShowAddModel(false)}
                 aria-label="Close"
-                className="text-slate-400 hover:text-slate-600 text-xl leading-none"
+                className="text-muted hover:text-ink text-xl leading-none"
               >
                 ×
               </button>
             </div>
             <div>
-              <label className="text-sm font-bold text-slate-900">Model name</label>
+              <label className={fieldLabel}>Model name</label>
               <input
                 placeholder="e.g. Corolla"
                 value={qmName}
                 onChange={(e) => setQmName(e.target.value)}
-                className="w-full mt-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm placeholder:text-slate-400"
+                className={`${inputBase} mt-1`}
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <button
-                onClick={() => setShowAddModel(false)}
-                className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50"
-              >
+              <button onClick={() => setShowAddModel(false)} className={btnSecondary}>
                 Cancel
               </button>
-              <button
-                onClick={handleQuickAddModel}
-                disabled={qmSaving}
-                className="px-4 py-2 rounded-lg bg-slate-900 text-white font-medium hover:bg-slate-800 disabled:opacity-60"
-              >
+              <button onClick={handleQuickAddModel} disabled={qmSaving} className={btnPrimary}>
                 {qmSaving ? "Saving..." : "Save Model"}
               </button>
             </div>
@@ -779,16 +994,56 @@ export default function VehiclesClient({
         </div>
       )}
 
-      {confirmDialog && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-30 p-4">
-          <div className="bg-white rounded-xl p-5 w-full max-w-sm space-y-4">
-            <p className="text-sm text-slate-700">{confirmDialog.message}</p>
-            <div className="flex justify-end gap-2">
+      {viewing && (
+        <div className="fixed inset-0 bg-ink/40 flex items-center justify-center z-30 p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm space-y-3">
+            <div className="flex items-start justify-between">
+              <h2 className="text-lg font-semibold text-ink">Vehicle Details</h2>
               <button
-                onClick={() => setConfirmDialog(null)}
-                disabled={deleting}
-                className="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 disabled:opacity-60"
+                onClick={() => setViewing(null)}
+                aria-label="Close"
+                className="text-muted hover:text-ink text-xl leading-none"
               >
+                ×
+              </button>
+            </div>
+            <dl className="text-sm divide-y divide-card">
+              {[
+                ["Vehicle No", viewing.vehicle_number],
+                ["Brand", viewing.vehicle_brands?.name ?? "—"],
+                ["Model", viewing.vehicle_models?.name ?? "—"],
+                ["Year", viewing.year ?? "—"],
+                ["Engine No", viewing.engine_number ?? "—"],
+                ["Chassis No", viewing.chassis_number ?? "—"],
+                [
+                  "Customer",
+                  viewing.customers
+                    ? `${viewing.customers.name}${viewing.customers.phone ? ` - ${viewing.customers.phone}` : ""}`
+                    : "—",
+                ],
+                ["Notes", viewing.notes ?? "—"],
+              ].map(([label, value]) => (
+                <div key={label} className="flex justify-between gap-4 py-2">
+                  <dt className="text-muted">{label}</dt>
+                  <dd className="text-ink font-medium text-right">{value}</dd>
+                </div>
+              ))}
+            </dl>
+            <div className="flex justify-end pt-2">
+              <button onClick={() => setViewing(null)} className={btnSecondary}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmDialog && (
+        <div className="fixed inset-0 bg-ink/40 flex items-center justify-center z-30 p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-5 w-full max-w-sm space-y-4">
+            <p className="text-sm text-ink">{confirmDialog.message}</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setConfirmDialog(null)} disabled={deleting} className={btnSecondary}>
                 Cancel
               </button>
               <button
@@ -797,7 +1052,7 @@ export default function VehiclesClient({
                   setConfirmDialog(null);
                 }}
                 disabled={deleting}
-                className="px-4 py-2 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 disabled:opacity-60"
+                className="px-5 py-2.5 rounded-lg bg-error text-white text-sm font-semibold hover:bg-error-hover disabled:opacity-60"
               >
                 {deleting ? "Deleting..." : "Delete"}
               </button>
@@ -808,16 +1063,16 @@ export default function VehiclesClient({
 
       {alertMessage && (
         <div
-          className="fixed inset-0 bg-black/40 flex items-center justify-center z-40 p-4"
+          className="fixed inset-0 bg-ink/40 flex items-center justify-center z-40 p-4"
           onClick={(e) => {
             if (e.target === e.currentTarget) setAlertMessage(null);
           }}
         >
-          <div className="bg-white rounded-xl p-5 w-full max-w-sm space-y-4 text-center">
-            <p className="text-sm text-slate-700">{alertMessage}</p>
+          <div className="bg-white rounded-2xl shadow-xl p-5 w-full max-w-sm space-y-4 text-center">
+            <p className="text-sm text-ink">{alertMessage}</p>
             <button
               onClick={() => setAlertMessage(null)}
-              className="px-5 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700"
+              className="px-5 py-2 rounded-lg bg-accent text-white text-sm font-semibold hover:bg-accent-hover"
             >
               OK
             </button>

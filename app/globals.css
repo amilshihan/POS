@@ -2,25 +2,37 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #14213d;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-inter-sans);
   --font-mono: var(--font-geist-mono);
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* Design system palette */
+  --color-primary: #0f1b36;
+  --color-primary-hover: #172a52;
+  --color-accent: #1677ff;
+  --color-accent-hover: #0f62d6;
+  --color-accent-light: #eaf3ff;
+  --color-ink: #14213d;
+  --color-muted: #6f82a3;
+  --color-placeholder: #8fa2c0;
+  --color-surface: #f7f9fc;
+  --color-input: #d7e1ef;
+  --color-card: #dce5f0;
+  --color-error: #e53935;
+  --color-error-hover: #c62828;
+  --color-error-light: #fdecea;
+  --color-success: #1677ff;
+  --color-btn-secondary-text: #23395d;
+  --color-btn-secondary-border: #c9d6e8;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 }

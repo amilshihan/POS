@@ -6,11 +6,11 @@ export default async function VehiclesPage() {
   const [vehiclesRes, customersRes, brandsRes, modelsRes] = await Promise.all([
     supabase
       .from("vehicles")
-      .select("*, customers(customer_code, name), vehicle_brands(name), vehicle_models(name)")
+      .select("*, customers(customer_code, name, phone), vehicle_brands(name), vehicle_models(name)")
       .order("created_at", { ascending: false }),
     supabase.from("customers").select("id, customer_code, name").order("name"),
-    supabase.from("vehicle_brands").select("*").order("name"),
-    supabase.from("vehicle_models").select("*").order("name"),
+    supabase.from("vehicle_brands").select("*").eq("is_active", true).order("name"),
+    supabase.from("vehicle_models").select("*").eq("is_active", true).order("name"),
   ]);
 
   return (

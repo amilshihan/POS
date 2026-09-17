@@ -5,6 +5,22 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { TITLES, combineTitleName, isValidEmail, isValidName, isValidPhone, splitTitle } from "@/lib/validation";
 import { COUNTRY_CODES, DEFAULT_COUNTRY_CODE, combinePhone, splitPhone } from "@/lib/countries";
+import {
+  modalTitle,
+  fieldLabel,
+  helperText,
+  requiredMark,
+  inputBase,
+  inputWithIcon,
+  iconLeft,
+  iconLeftTop,
+  btnPrimary,
+  btnSecondary,
+  iconActionBtn,
+  iconActionBtnDanger,
+  cardSurface,
+  twoColRow,
+} from "@/lib/ui";
 
 type Customer = {
   id: string;
@@ -211,6 +227,45 @@ const IconSave = ({ className }: { className?: string }) => (
       </>
     }
   />
+);
+const IconPlus = ({ className }: { className?: string }) => (
+  <FieldIcon className={className} path={<path d="M10 4v12M4 10h12" strokeLinecap="round" />} />
+);
+const IconTrash = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className={className}>
+    <path
+      d="M4 6h12M8 6V4.5A1.5 1.5 0 0 1 9.5 3h1A1.5 1.5 0 0 1 12 4.5V6m2 0-.6 9.02A1.5 1.5 0 0 1 11.9 16.5h-3.8a1.5 1.5 0 0 1-1.5-1.48L6 6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+const IconFilters = ({ className }: { className?: string }) => (
+  <FieldIcon
+    className={className}
+    path={
+      <>
+        <path d="M3 5h14M3 10h14M3 15h14" strokeLinecap="round" />
+        <circle cx="7" cy="5" r="1.5" fill="currentColor" stroke="none" />
+        <circle cx="13" cy="10" r="1.5" fill="currentColor" stroke="none" />
+        <circle cx="9" cy="15" r="1.5" fill="currentColor" stroke="none" />
+      </>
+    }
+  />
+);
+const IconSearch = ({ className }: { className?: string }) => (
+  <FieldIcon
+    className={className}
+    path={
+      <>
+        <circle cx="9" cy="9" r="6" />
+        <path d="M17 17l-3.5-3.5" strokeLinecap="round" />
+      </>
+    }
+  />
+);
+const IconPencil = ({ className }: { className?: string }) => (
+  <FieldIcon className={className} path={<path d="M13.5 3.5l3 3L6 17H3v-3L13.5 3.5Z" strokeLinejoin="round" />} />
 );
 
 export default function CustomersClient({ initialCustomers }: { initialCustomers: Customer[] }) {
@@ -496,11 +551,11 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
   }
 
   return (
-    <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="p-4 sm:p-6 space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Customers</h1>
-          <p className="text-sm text-slate-500">Manage customer profiles, credit limits, and status.</p>
+          <h1 className="text-2xl font-bold text-ink">Customers</h1>
+          <p className="text-sm text-muted">Manage customer profiles, credit limits, and status.</p>
         </div>
         <div className="flex items-center gap-2">
           {selectedIds.size > 0 && (
@@ -508,52 +563,39 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
               onClick={handleDeleteSelected}
               title={`Delete ${selectedIds.size} selected customer(s)`}
               aria-label="Delete Selected"
-              className="relative w-10 h-10 flex items-center justify-center rounded-lg border border-red-300 text-red-600 hover:bg-red-50"
+              className="relative w-10 h-10 flex items-center justify-center rounded-lg border border-error/30 text-error hover:bg-error-light"
             >
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5">
-                <path
-                  d="M4 6h12M8 6V4.5A1.5 1.5 0 0 1 9.5 3h1A1.5 1.5 0 0 1 12 4.5V6m2 0-.6 9.02A1.5 1.5 0 0 1 11.9 16.5h-3.8a1.5 1.5 0 0 1-1.5-1.48L6 6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-semibold flex items-center justify-center">
+              <IconTrash className="w-5 h-5" />
+              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-error text-white text-[10px] font-semibold flex items-center justify-center">
                 {selectedIds.size}
               </span>
             </button>
           )}
-          <button
-            onClick={openNew}
-            className="flex items-center gap-2 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm font-medium hover:bg-slate-800 transition"
-          >
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-4 h-4">
-              <circle cx="8" cy="7" r="3" />
-              <path d="M2.5 17c0-3 2.5-5 5.5-5s5.5 2 5.5 5" strokeLinecap="round" />
-              <path d="M16 6v4M14 8h4" strokeLinecap="round" />
-            </svg>
+          <button onClick={openNew} className={btnPrimary}>
+            <IconUserPlus className="w-4 h-4" />
             Add Customer
           </button>
         </div>
       </div>
 
       {deleteResult && (
-        <div className="bg-white rounded-xl border border-slate-200 p-3 text-sm space-y-1">
+        <div className={`${cardSurface} p-3 text-sm space-y-1`}>
           <div className="flex items-center justify-between">
             <span>
-              <span className="text-green-700 font-medium">{deleteResult.deleted} deleted</span>
+              <span className="text-accent font-medium">{deleteResult.deleted} deleted</span>
               {deleteResult.failed > 0 && (
                 <>
                   {", "}
-                  <span className="text-red-600 font-medium">{deleteResult.failed} failed</span>
+                  <span className="text-error font-medium">{deleteResult.failed} failed</span>
                 </>
               )}
             </span>
-            <button onClick={() => setDeleteResult(null)} className="text-slate-400 hover:text-slate-600">
+            <button onClick={() => setDeleteResult(null)} className="text-muted hover:text-ink">
               ✕
             </button>
           </div>
           {deleteResult.errors.length > 0 && (
-            <ul className="max-h-32 overflow-y-auto text-xs text-red-600 list-disc pl-4 space-y-0.5">
+            <ul className="max-h-32 overflow-y-auto text-xs text-error list-disc pl-4 space-y-0.5">
               {deleteResult.errors.map((e, i) => (
                 <li key={i}>{e}</li>
               ))}
@@ -562,38 +604,24 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-4">
+      <div className={`${cardSurface} p-4 space-y-4`}>
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 font-semibold text-slate-900">
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-4 h-4">
-              <path d="M3 5h14M3 10h14M3 15h14" strokeLinecap="round" />
-              <circle cx="7" cy="5" r="1.5" fill="currentColor" stroke="none" />
-              <circle cx="13" cy="10" r="1.5" fill="currentColor" stroke="none" />
-              <circle cx="9" cy="15" r="1.5" fill="currentColor" stroke="none" />
-            </svg>
+          <div className="flex items-center gap-2 font-semibold text-ink">
+            <IconFilters className="w-4 h-4" />
             Filters
           </div>
           <button
             onClick={clearFilters}
-            className="text-sm px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50"
+            className="text-sm px-3 py-1.5 rounded-lg border border-input text-muted hover:bg-surface hover:text-ink"
           >
             Clear
           </button>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-[1fr_200px] gap-4">
           <div>
-            <label className="text-xs text-slate-500">Search</label>
+            <label className={helperText}>Search</label>
             <div className="relative mt-1">
-              <svg
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              >
-                <circle cx="9" cy="9" r="6" />
-                <path d="M17 17l-3.5-3.5" strokeLinecap="round" />
-              </svg>
+              <IconSearch className={iconLeft} />
               <input
                 value={search}
                 onChange={(e) => {
@@ -601,19 +629,19 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
                   setPage(1);
                 }}
                 placeholder="Search by name, mobile, email..."
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-sm"
+                className={inputWithIcon}
               />
             </div>
           </div>
           <div>
-            <label className="text-xs text-slate-500">Status</label>
+            <label className={helperText}>Status</label>
             <select
               value={statusFilter}
               onChange={(e) => {
                 setStatusFilter(e.target.value as "all" | "active" | "inactive");
                 setPage(1);
               }}
-              className="w-full mt-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+              className={`${inputBase} mt-1`}
             >
               <option value="all">All</option>
               <option value="active">Active</option>
@@ -621,12 +649,12 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
             </select>
           </div>
         </div>
-        <div className="text-right text-xs text-slate-400">{filtered.length} customers</div>
+        <div className="text-right text-xs text-muted">{filtered.length} customers</div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden overflow-x-auto">
+      <div className={`${cardSurface} overflow-hidden overflow-x-auto`}>
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-600">
+          <thead className="bg-surface text-muted">
             <tr>
               <th className="px-4 py-2 w-8">
                 <input
@@ -649,34 +677,30 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
               <th className="px-4 py-2"></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-card">
             {paginated.map((c) => (
               <tr key={c.id}>
                 <td className="px-4 py-2">
                   <input type="checkbox" checked={selectedIds.has(c.id)} onChange={() => toggleSelected(c.id)} />
                 </td>
-                <td className="px-4 py-2 text-slate-500 font-mono text-xs">{c.customer_code}</td>
-                <td className="px-4 py-2 text-slate-800 font-medium">{c.phone}</td>
-                <td className="px-4 py-2 text-slate-800">{c.name}</td>
-                <td className="px-4 py-2 text-slate-500">{c.email}</td>
-                <td className="px-4 py-2 text-slate-500">{c.address}</td>
-                <td className="px-4 py-2 text-slate-500">{c.city}</td>
-                <td className="px-4 py-2 text-slate-500">{c.tax_number ?? "—"}</td>
-                <td className="px-4 py-2 text-right text-slate-600">{c.credit_limit.toFixed(2)}</td>
-                <td className="px-4 py-2 text-slate-500">
+                <td className="px-4 py-2 text-muted font-mono text-xs">{c.customer_code}</td>
+                <td className="px-4 py-2 text-ink font-medium">{c.phone}</td>
+                <td className="px-4 py-2 text-ink">{c.name}</td>
+                <td className="px-4 py-2 text-muted">{c.email}</td>
+                <td className="px-4 py-2 text-muted">{c.address}</td>
+                <td className="px-4 py-2 text-muted">{c.city}</td>
+                <td className="px-4 py-2 text-muted">{c.tax_number ?? "—"}</td>
+                <td className="px-4 py-2 text-right text-ink">{c.credit_limit.toFixed(2)}</td>
+                <td className="px-4 py-2 text-muted">
                   {c.credit_period_days} {c.credit_period_days === 1 ? "Day" : "Days"}
                 </td>
-                <td
-                  className={`px-4 py-2 text-right font-medium ${
-                    c.credit_balance > 0 ? "text-red-600" : "text-slate-800"
-                  }`}
-                >
+                <td className={`px-4 py-2 text-right font-medium ${c.credit_balance > 0 ? "text-error" : "text-ink"}`}>
                   ${c.credit_balance.toFixed(2)}
                 </td>
                 <td className="px-4 py-2">
                   <span
                     className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
-                      c.is_active ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-500"
+                      c.is_active ? "bg-accent text-white" : "bg-surface text-muted"
                     }`}
                   >
                     {c.is_active ? "Active" : "Inactive"}
@@ -684,29 +708,24 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
                 </td>
                 <td className="px-4 py-2 text-right whitespace-nowrap">
                   <div className="flex items-center justify-end gap-2">
-                    <button
-                      onClick={() => openEdit(c)}
-                      title="Edit"
-                      aria-label="Edit"
-                      className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50"
-                    >
-                      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-4 h-4">
-                        <path d="M13.5 3.5l3 3L6 17H3v-3L13.5 3.5Z" strokeLinejoin="round" />
-                      </svg>
+                    <button onClick={() => openEdit(c)} title="Edit" aria-label="Edit" className={iconActionBtn}>
+                      <IconPencil className="w-4 h-4" />
                     </button>
                     {c.credit_balance > 0 && (
                       <button
                         onClick={() => setPayFor(c)}
-                        className="text-xs px-3 py-1.5 rounded-lg border border-blue-300 text-blue-600 hover:bg-blue-50"
+                        className="text-xs px-3 py-1.5 rounded-lg border border-accent text-accent hover:bg-accent-light"
                       >
                         Record Payment
                       </button>
                     )}
                     <button
                       onClick={() => handleDeleteOne(c)}
-                      className="text-xs px-3 py-1.5 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700"
+                      title="Delete"
+                      aria-label="Delete"
+                      className={iconActionBtnDanger}
                     >
-                      Delete
+                      <IconTrash className="w-4 h-4" />
                     </button>
                   </div>
                 </td>
@@ -714,29 +733,29 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
             ))}
             {paginated.length === 0 && (
               <tr>
-                <td colSpan={13} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={13} className="px-4 py-8 text-center text-muted">
                   No customers found.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
-        <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 text-sm">
-          <span className="text-slate-500">
+        <div className="flex items-center justify-between px-4 py-3 border-t border-card text-sm">
+          <span className="text-muted">
             Page {currentPage} · Showing {paginated.length} of {filtered.length}
           </span>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={currentPage <= 1}
-              className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent"
+              className="px-3 py-1.5 rounded-lg border border-input text-muted hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent"
             >
               Prev
             </button>
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPage >= totalPages}
-              className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent"
+              className="px-3 py-1.5 rounded-lg border border-input text-muted hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent"
             >
               Next
             </button>
@@ -745,39 +764,35 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-20 p-4">
-          <div className="bg-white rounded-xl p-6 w-full max-w-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-ink/40 flex items-center justify-center z-20 p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8 w-full max-w-2xl space-y-5 max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
+                <div className="w-10 h-10 rounded-full bg-accent-light flex items-center justify-center text-accent shrink-0">
                   <IconUserPlus className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="font-bold text-lg text-slate-900">
-                    {form.id ? "Edit Customer" : "Add Customer"}
-                  </h2>
-                  <p className="text-sm text-slate-400">
-                    {form.id ? "Update customer details" : "Add new customer"}
-                  </p>
+                  <h2 className={modalTitle}>{form.id ? "Edit Customer" : "Add Customer"}</h2>
+                  <p className="text-sm text-muted">{form.id ? "Update customer details" : "Add new customer"}</p>
                 </div>
               </div>
               <button
                 onClick={() => setShowForm(false)}
                 aria-label="Close"
-                className="text-slate-400 hover:text-slate-600 text-xl leading-none"
+                className="text-muted hover:text-ink text-xl leading-none"
               >
                 ×
               </button>
             </div>
-            {error && <div className="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{error}</div>}
+            {error && <div className="rounded-lg bg-error-light text-error text-sm px-3 py-2">{error}</div>}
 
-            <div className="flex gap-2">
-              <div className="w-24 shrink-0">
-                <label className="text-sm font-bold text-slate-900">Title</label>
+            <div className={twoColRow}>
+              <div className="w-full sm:w-24 shrink-0">
+                <label className={fieldLabel}>Title</label>
                 <select
                   value={form.title}
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  className="w-full mt-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-2.5 text-sm"
+                  className={`${inputBase} mt-1`}
                 >
                   <option value="">Title</option>
                   {TITLES.map((t) => (
@@ -788,28 +803,30 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
                 </select>
               </div>
               <div className="w-full">
-                <label className="text-sm font-bold text-slate-900">Name *</label>
+                <label className={fieldLabel}>
+                  Name <span className={requiredMark}>*</span>
+                </label>
                 <div className="relative mt-1">
-                  <IconUser className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <IconUser className={iconLeft} />
                   <input
                     placeholder="Enter customers name"
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 py-2.5 text-sm placeholder:text-slate-400"
+                    className={inputWithIcon}
                   />
                 </div>
               </div>
             </div>
 
-            <div className="flex gap-2">
-              <div className="w-40 shrink-0">
-                <label className="text-sm font-bold text-slate-900">Country</label>
+            <div className={twoColRow}>
+              <div className="w-full sm:w-40 shrink-0">
+                <label className={fieldLabel}>Country</label>
                 <div className="relative mt-1">
-                  <IconGlobe className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <IconGlobe className={iconLeft} />
                   <select
                     value={form.phoneCountry}
                     onChange={(e) => setForm({ ...form, phoneCountry: e.target.value })}
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-2 py-2.5 text-sm"
+                    className={inputWithIcon}
                   >
                     {COUNTRY_CODES.map((c) => (
                       <option key={c.name} value={c.dialCode}>
@@ -820,109 +837,109 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
                 </div>
               </div>
               <div className="w-full">
-                <label className="text-sm font-bold text-slate-900">Mobile (optional)</label>
+                <label className={fieldLabel}>Mobile (optional)</label>
                 <div className="relative mt-1">
-                  <IconPhone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <IconPhone className={iconLeft} />
                   <input
                     type="tel"
                     placeholder="Enter customer mobile number"
                     value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 py-2.5 text-sm placeholder:text-slate-400"
+                    className={inputWithIcon}
                   />
                 </div>
               </div>
             </div>
 
             <div>
-              <label className="text-sm font-bold text-slate-900">NIC (optional)</label>
+              <label className={fieldLabel}>NIC (optional)</label>
               <div className="relative mt-1">
-                <IconIdCard className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <IconIdCard className={iconLeft} />
                 <input
                   placeholder="Enter customer NIC"
                   value={form.nic}
                   onChange={(e) => setForm({ ...form, nic: e.target.value })}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 py-2.5 text-sm placeholder:text-slate-400"
+                  className={inputWithIcon}
                 />
               </div>
             </div>
 
             <div>
-              <label className="text-sm font-bold text-slate-900">Company Name (optional)</label>
+              <label className={fieldLabel}>Company Name (optional)</label>
               <div className="relative mt-1">
-                <IconBuilding className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <IconBuilding className={iconLeft} />
                 <input
                   placeholder="Enter company name"
                   value={form.company_name}
                   onChange={(e) => setForm({ ...form, company_name: e.target.value })}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 py-2.5 text-sm placeholder:text-slate-400"
+                  className={inputWithIcon}
                 />
               </div>
             </div>
 
             <div>
-              <label className="text-sm font-bold text-slate-900">Email (optional)</label>
+              <label className={fieldLabel}>Email (optional)</label>
               <div className="relative mt-1">
-                <IconMail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <IconMail className={iconLeft} />
                 <input
                   type="email"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                   placeholder="Enter customer email address"
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 py-2.5 text-sm placeholder:text-slate-400"
+                  className={inputWithIcon}
                 />
               </div>
             </div>
 
             <div>
-              <label className="text-sm font-bold text-slate-900">Address (optional)</label>
+              <label className={fieldLabel}>Address (optional)</label>
               <div className="relative mt-1">
-                <IconMapPin className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+                <IconMapPin className={iconLeftTop} />
                 <textarea
                   placeholder="Street, area, etc."
                   value={form.address}
                   onChange={(e) => setForm({ ...form, address: e.target.value })}
                   rows={3}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 py-2.5 text-sm placeholder:text-slate-400"
+                  className={inputWithIcon}
                 />
               </div>
             </div>
 
-            <div className="flex gap-2">
-              <div className="w-1/2">
-                <label className="text-sm font-bold text-slate-900">City (optional)</label>
+            <div className={twoColRow}>
+              <div className="w-full sm:w-1/2">
+                <label className={fieldLabel}>City (optional)</label>
                 <div className="relative mt-1">
-                  <IconBuilding className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <IconBuilding className={iconLeft} />
                   <input
                     value={form.city}
                     onChange={(e) => setForm({ ...form, city: e.target.value })}
                     placeholder="e.g. Colombo"
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 py-2.5 text-sm placeholder:text-slate-400"
+                    className={inputWithIcon}
                   />
                 </div>
               </div>
-              <div className="w-1/2">
-                <label className="text-sm font-bold text-slate-900">Tax Number (optional)</label>
+              <div className="w-full sm:w-1/2">
+                <label className={fieldLabel}>Tax Number (optional)</label>
                 <div className="relative mt-1">
-                  <IconFileText className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <IconFileText className={iconLeft} />
                   <input
                     value={form.tax_number}
                     onChange={(e) => setForm({ ...form, tax_number: e.target.value })}
                     placeholder="VAT / TIN"
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 py-2.5 text-sm placeholder:text-slate-400"
+                    className={inputWithIcon}
                   />
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-between border border-slate-200 rounded-xl p-4">
+            <div className="flex items-center justify-between border border-card rounded-xl p-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
+                <div className="w-10 h-10 rounded-full bg-accent-light flex items-center justify-center text-accent shrink-0">
                   <IconUsers className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-base font-bold text-slate-900">Active</p>
-                  <p className="text-sm text-slate-400">Inactive customers cannot be selected in POS.</p>
+                  <p className="text-base font-semibold text-ink">Active</p>
+                  <p className="text-sm text-muted">Inactive customers cannot be selected in POS.</p>
                 </div>
               </div>
               <button
@@ -931,7 +948,7 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
                 aria-checked={form.is_active}
                 onClick={() => setForm({ ...form, is_active: !form.is_active })}
                 className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
-                  form.is_active ? "bg-blue-600" : "bg-slate-300"
+                  form.is_active ? "bg-accent" : "bg-card"
                 }`}
               >
                 <span
@@ -942,126 +959,126 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
               </button>
             </div>
 
-            <div className="border border-slate-200 rounded-xl">
+            <div className="border border-card rounded-xl">
               <button
                 type="button"
                 onClick={() => setShowCreditSection((v) => !v)}
                 className="w-full flex items-center justify-between p-4"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-accent-light flex items-center justify-center text-accent shrink-0">
                     <IconCoins className="w-5 h-5" />
                   </div>
                   <div className="text-left">
-                    <p className="text-base font-bold text-slate-900">Financial / Credit (optional)</p>
-                    <p className="text-sm text-slate-400">Set credit limits, payment terms, etc.</p>
+                    <p className="text-lg font-semibold text-ink">Financial / Credit (optional)</p>
+                    <p className="text-sm text-muted">Set credit limits, payment terms, etc.</p>
                   </div>
                 </div>
                 <IconChevronDown
-                  className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${showCreditSection ? "rotate-180" : ""}`}
+                  className={`w-4 h-4 text-muted transition-transform shrink-0 ${showCreditSection ? "rotate-180" : ""}`}
                 />
               </button>
               {showCreditSection && (
                 <div className="px-4 pb-4 space-y-3">
-                  <div className="flex items-start gap-2 bg-blue-50 rounded-lg px-3 py-2.5">
-                    <IconInfo className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
-                    <p className="text-sm text-slate-600">
+                  <div className="flex items-start gap-2 bg-accent-light rounded-lg px-3 py-2.5">
+                    <IconInfo className="w-4 h-4 text-accent mt-0.5 shrink-0" />
+                    <p className="text-sm text-ink">
                       If you don&apos;t use credit sales, leave defaults (0.00 and 0 days).
                     </p>
                   </div>
-                  <div className="flex gap-2">
-                    <div className="w-1/2">
-                      <label className="text-sm font-bold text-slate-900">Credit limit</label>
-                      <div className="flex mt-1 rounded-lg border border-slate-200 overflow-hidden">
-                        <span className="flex items-center px-3 bg-slate-100 text-sm text-slate-600 border-r border-slate-200">
+                  <div className={twoColRow}>
+                    <div className="w-full sm:w-1/2">
+                      <label className={fieldLabel}>Credit limit</label>
+                      <div className="flex mt-1 rounded-lg border border-input overflow-hidden focus-within:border-accent focus-within:ring-[3px] focus-within:ring-accent-light">
+                        <span className="flex items-center px-3 bg-surface text-sm text-muted border-r border-input">
                           LKR
                         </span>
                         <input
                           type="number"
                           value={form.credit_limit}
                           onChange={(e) => setForm({ ...form, credit_limit: e.target.value })}
-                          className="w-full bg-slate-50 px-3 py-2.5 text-sm"
+                          className="w-full bg-surface px-3 py-2.5 text-sm text-ink focus:outline-none"
                         />
                       </div>
-                      <p className="text-xs text-slate-400 mt-1">Maximum credit amount for this customer.</p>
+                      <p className={`${helperText} mt-1`}>Maximum credit amount for this customer.</p>
                     </div>
-                    <div className="w-1/2">
-                      <label className="text-sm font-bold text-slate-900">Credit period (days)</label>
+                    <div className="w-full sm:w-1/2">
+                      <label className={fieldLabel}>Credit period (days)</label>
                       <div className="relative mt-1">
-                        <IconCalendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <IconCalendar className={iconLeft} />
                         <input
                           type="number"
                           value={form.credit_period_days}
                           onChange={(e) => setForm({ ...form, credit_period_days: e.target.value })}
-                          className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 py-2.5 text-sm"
+                          className={inputWithIcon}
                         />
                       </div>
-                      <p className="text-xs text-slate-400 mt-1">Allowed credit period in days.</p>
+                      <p className={`${helperText} mt-1`}>Allowed credit period in days.</p>
                     </div>
                   </div>
                 </div>
               )}
             </div>
 
-            <div className="border border-slate-200 rounded-xl">
+            <div className="border border-card rounded-xl">
               <button
                 type="button"
                 onClick={() => setShowGuarantorSection((v) => !v)}
                 className="w-full flex items-center justify-between p-4"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-accent-light flex items-center justify-center text-accent shrink-0">
                     <IconShield className="w-5 h-5" />
                   </div>
                   <div className="text-left">
-                    <p className="text-base font-bold text-slate-900">Guarantor Details (optional)</p>
-                    <p className="text-sm text-slate-400">
-                    Add guarantor information if <span className="font-semibold text-slate-500">required</span>.
-                  </p>
+                    <p className="text-lg font-semibold text-ink">Guarantor Details (optional)</p>
+                    <p className="text-sm text-muted">
+                      Add guarantor information if <span className="font-semibold text-ink">required</span>.
+                    </p>
                   </div>
                 </div>
                 <IconChevronDown
-                  className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${showGuarantorSection ? "rotate-180" : ""}`}
+                  className={`w-4 h-4 text-muted transition-transform shrink-0 ${showGuarantorSection ? "rotate-180" : ""}`}
                 />
               </button>
               {showGuarantorSection && (
                 <div className="px-4 pb-4 space-y-3">
-                  <div className="flex gap-2">
-                    <div className="w-1/2">
-                      <label className="text-sm font-bold text-slate-900">Guarantor name</label>
+                  <div className={twoColRow}>
+                    <div className="w-full sm:w-1/2">
+                      <label className={fieldLabel}>Guarantor name</label>
                       <div className="relative mt-1">
-                        <IconUser className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <IconUser className={iconLeft} />
                         <input
                           placeholder="Enter guarantor name"
                           value={form.guarantor_name}
                           onChange={(e) => setForm({ ...form, guarantor_name: e.target.value })}
-                          className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 py-2.5 text-sm placeholder:text-slate-400"
+                          className={inputWithIcon}
                         />
                       </div>
                     </div>
-                    <div className="w-1/2">
-                      <label className="text-sm font-bold text-slate-900">Guarantor NIC</label>
+                    <div className="w-full sm:w-1/2">
+                      <label className={fieldLabel}>Guarantor NIC</label>
                       <div className="relative mt-1">
-                        <IconIdCard className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <IconIdCard className={iconLeft} />
                         <input
                           placeholder="Enter guarantor NIC"
                           value={form.guarantor_nic}
                           onChange={(e) => setForm({ ...form, guarantor_nic: e.target.value })}
-                          className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 py-2.5 text-sm placeholder:text-slate-400"
+                          className={inputWithIcon}
                         />
                       </div>
                     </div>
                   </div>
                   <div>
-                    <label className="text-sm font-bold text-slate-900">Guarantor mobile</label>
+                    <label className={fieldLabel}>Guarantor mobile</label>
                     <div className="relative mt-1">
-                      <IconPhone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <IconPhone className={iconLeft} />
                       <input
                         type="tel"
                         placeholder="Enter guarantor mobile number"
                         value={form.guarantor_mobile}
                         onChange={(e) => setForm({ ...form, guarantor_mobile: e.target.value })}
-                        className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 py-2.5 text-sm placeholder:text-slate-400"
+                        className={inputWithIcon}
                       />
                     </div>
                   </div>
@@ -1069,20 +1086,13 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
               )}
             </div>
 
-            <hr className="border-slate-200" />
+            <hr className="border-card" />
 
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                onClick={() => setShowForm(false)}
-                className="px-5 py-2.5 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50"
-              >
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-1">
+              <button onClick={() => setShowForm(false)} className={btnSecondary}>
                 Cancel
               </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-slate-900 text-white font-semibold hover:bg-slate-800 disabled:opacity-60"
-              >
+              <button onClick={handleSave} disabled={saving} className={btnPrimary}>
                 <IconSave className="w-4 h-4" />
                 {saving ? "Saving..." : form.id ? "Save Changes" : "Save Customer"}
               </button>
@@ -1092,29 +1102,23 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
       )}
 
       {payFor && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-20 p-4">
-          <div className="bg-white rounded-xl p-6 w-full max-w-sm space-y-3">
-            <h2 className="font-semibold text-lg text-slate-900">Record Payment — {payFor.name}</h2>
-            <p className="text-sm text-slate-500">Currently owes ${payFor.credit_balance.toFixed(2)}</p>
-            {error && <div className="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{error}</div>}
+        <div className="fixed inset-0 bg-ink/40 flex items-center justify-center z-20 p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm space-y-3">
+            <h2 className="text-lg font-semibold text-ink">Record Payment — {payFor.name}</h2>
+            <p className="text-sm text-muted">Currently owes ${payFor.credit_balance.toFixed(2)}</p>
+            {error && <div className="rounded-lg bg-error-light text-error text-sm px-3 py-2">{error}</div>}
             <input
               type="number"
               placeholder="Amount"
               value={payAmount}
               onChange={(e) => setPayAmount(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2"
+              className={inputBase}
             />
             <div className="flex justify-end gap-2 pt-2">
-              <button
-                onClick={() => setPayFor(null)}
-                className="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100"
-              >
+              <button onClick={() => setPayFor(null)} className={btnSecondary}>
                 Cancel
               </button>
-              <button
-                onClick={handleRecordPayment}
-                className="px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700"
-              >
+              <button onClick={handleRecordPayment} className={btnPrimary}>
                 Record
               </button>
             </div>
@@ -1123,15 +1127,11 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
       )}
 
       {confirmDialog && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-30 p-4">
-          <div className="bg-white rounded-xl p-5 w-full max-w-sm space-y-4">
-            <p className="text-sm text-slate-700">{confirmDialog.message}</p>
+        <div className="fixed inset-0 bg-ink/40 flex items-center justify-center z-30 p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-5 w-full max-w-sm space-y-4">
+            <p className="text-sm text-ink">{confirmDialog.message}</p>
             <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setConfirmDialog(null)}
-                disabled={deleting}
-                className="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 disabled:opacity-60"
-              >
+              <button onClick={() => setConfirmDialog(null)} disabled={deleting} className={btnSecondary}>
                 Cancel
               </button>
               <button
@@ -1140,7 +1140,7 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
                   setConfirmDialog(null);
                 }}
                 disabled={deleting}
-                className="px-4 py-2 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 disabled:opacity-60"
+                className="px-5 py-2.5 rounded-lg bg-error text-white text-sm font-semibold hover:bg-error-hover disabled:opacity-60"
               >
                 {deleting ? "Deleting..." : "Delete"}
               </button>
@@ -1151,16 +1151,16 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
 
       {alertMessage && (
         <div
-          className="fixed inset-0 bg-black/40 flex items-center justify-center z-40 p-4"
+          className="fixed inset-0 bg-ink/40 flex items-center justify-center z-40 p-4"
           onClick={(e) => {
             if (e.target === e.currentTarget) setAlertMessage(null);
           }}
         >
-          <div className="bg-white rounded-xl p-5 w-full max-w-sm space-y-4 text-center">
-            <p className="text-sm text-slate-700">{alertMessage}</p>
+          <div className="bg-white rounded-2xl shadow-xl p-5 w-full max-w-sm space-y-4 text-center">
+            <p className="text-sm text-ink">{alertMessage}</p>
             <button
               onClick={() => setAlertMessage(null)}
-              className="px-5 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700"
+              className="px-5 py-2 rounded-lg bg-accent text-white text-sm font-semibold hover:bg-accent-hover"
             >
               OK
             </button>
