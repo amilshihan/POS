@@ -574,6 +574,15 @@ export default function InventoryClient({
 
   async function performSave(allowSkuAutoFix: boolean) {
     setError(null);
+
+    const costPrice = Number(form.cost_price) || 0;
+    const sellPrice = Number(form.sell_price) || 0;
+    const minSellPrice = Math.ceil(costPrice * 1.03 * 100) / 100;
+    if (costPrice > 0 && sellPrice < minSellPrice - 0.01) {
+      setError(`Selling price must be at least Cost + 3% profit ($${minSellPrice.toFixed(2)}).`);
+      return;
+    }
+
     const trimmedSku = form.sku.trim();
     let skuToUse: string | null = trimmedSku || null;
 
@@ -1321,7 +1330,11 @@ export default function InventoryClient({
                   <input
                     type="number"
                     value={form.cost_price}
-                    onChange={(e) => setForm({ ...form, cost_price: e.target.value })}
+                    onChange={(e) => {
+                      const cost = e.target.value;
+                      const minSellPrice = Math.ceil((Number(cost) || 0) * 1.03 * 100) / 100;
+                      setForm({ ...form, cost_price: cost, sell_price: minSellPrice.toFixed(2) });
+                    }}
                     className="w-full rounded-lg border border-slate-300 px-3 py-2"
                   />
                 </div>
@@ -1353,6 +1366,9 @@ export default function InventoryClient({
                     onChange={(e) => setForm({ ...form, sell_price: e.target.value })}
                     className="w-full rounded-lg border border-slate-300 px-3 py-2"
                   />
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Defaults to Cost + 3% profit; can be raised for more margin.
+                  </p>
                 </div>
               </div>
               <div>

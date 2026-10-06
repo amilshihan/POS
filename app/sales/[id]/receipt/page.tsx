@@ -42,7 +42,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
 
   return (
     <>
-      <PrintTrigger />
+      <PrintTrigger redirectTo="/pos" />
       <ReceiptView sale={sale} settings={settings} />
     </>
   );

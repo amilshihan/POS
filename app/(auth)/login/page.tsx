@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -32,6 +33,14 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
+          <Image
+            src="/logo.png"
+            alt="Amil Auto Hub"
+            width={220}
+            height={99}
+            priority
+            className="mx-auto mb-4 h-auto w-56"
+          />
           <h1 className="text-2xl font-bold text-slate-900">Spare Parts POS</h1>
           <p className="text-slate-500 mt-1">Sign in to continue</p>
         </div>

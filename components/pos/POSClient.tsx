@@ -11,6 +11,7 @@ type PartRow = {
   sku: string | null;
   barcode: string | null;
   name: string;
+  cost_price?: number;
   sell_price: number;
   qty_on_hand: number;
   unit: string;
@@ -24,7 +25,7 @@ type CustomerRow = {
   credit_balance: number;
 };
 
-type CartLine = { part: PartRow; qty: number };
+type CartLine = { part: PartRow; qty: number; discount: number };
 
 type PaymentMethod = "cash" | "credit" | "cheque" | "mixed";
 
@@ -32,10 +33,12 @@ export default function POSClient({
   initialParts,
   customers,
   cashierId,
+  admin,
 }: {
   initialParts: PartRow[];
   customers: CustomerRow[];
   cashierId: string;
+  admin: boolean;
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -64,11 +67,24 @@ export default function POSClient({
     () => cart.reduce((sum, l) => sum + l.qty * l.part.sell_price, 0),
     [cart]
   );
-  const total = Math.max(0, subtotal - discount);
+  const itemDiscountsTotal = useMemo(
+    () => cart.reduce((sum, l) => sum + l.qty * l.discount, 0),
+    [cart]
+  );
+  const total = Math.max(0, subtotal - itemDiscountsTotal - discount);
 
   const filteredParts = useMemo(() => {
     if (!search.trim()) return [];
     const q = search.toLowerCase();
+    const matchRank = (p: PartRow) => {
+      const name = p.name.toLowerCase();
+      const sku = p.sku?.toLowerCase() ?? "";
+      const barcode = p.barcode?.toLowerCase() ?? "";
+      if (sku === q || barcode === q) return 0;
+      if (sku.startsWith(q) || barcode.startsWith(q)) return 1;
+      if (name.startsWith(q)) return 2;
+      return 3;
+    };
     return initialParts
       .filter(
         (p) =>
@@ -76,7 +92,8 @@ export default function POSClient({
           p.sku?.toLowerCase().includes(q) ||
           p.barcode?.toLowerCase().includes(q)
       )
-      .slice(0, 8);
+      .sort((a, b) => matchRank(a) - matchRank(b))
+      .slice(0, 20);
   }, [search, initialParts]);
 
   function addPart(part: PartRow) {
@@ -85,7 +102,7 @@ export default function POSClient({
       if (existing) {
         return prev.map((l) => (l.part.id === part.id ? { ...l, qty: l.qty + 1 } : l));
       }
-      return [...prev, { part, qty: 1 }];
+      return [...prev, { part, qty: 1, discount: 0 }];
     });
     setSearch("");
   }
@@ -95,6 +112,14 @@ export default function POSClient({
       prev
         .map((l) => (l.part.id === partId ? { ...l, qty: Math.max(0, qty) } : l))
         .filter((l) => l.qty > 0)
+    );
+  }
+
+  function updateLineDiscount(partId: string, discount: number) {
+    setCart((prev) =>
+      prev.map((l) =>
+        l.part.id === partId ? { ...l, discount: Math.min(Math.max(0, discount), l.part.sell_price) } : l
+      )
     );
   }
 
@@ -157,6 +182,7 @@ export default function POSClient({
     }
 
     setSubmitting(true);
+    let createdSaleId: string | null = null;
     try {
       let finalCustomerId = customerId || null;
 
@@ -176,7 +202,7 @@ export default function POSClient({
           customer_id: finalCustomerId,
           cashier_id: cashierId,
           subtotal,
-          discount,
+          discount: itemDiscountsTotal + discount,
           tax: 0,
           total,
           amount_paid: paid,
@@ -186,15 +212,19 @@ export default function POSClient({
         .single();
 
       if (saleError || !sale) throw saleError ?? new Error("Could not create sale");
+      createdSaleId = sale.id;
 
       const { error: itemsError } = await supabase.from("sale_items").insert(
-        cart.map((l) => ({
-          sale_id: sale.id,
-          part_id: l.part.id,
-          qty: l.qty,
-          unit_price: l.part.sell_price,
-          line_total: l.qty * l.part.sell_price,
-        }))
+        cart.map((l) => {
+          const unitPrice = Math.max(0, l.part.sell_price - l.discount);
+          return {
+            sale_id: sale.id,
+            part_id: l.part.id,
+            qty: l.qty,
+            unit_price: unitPrice,
+            line_total: l.qty * unitPrice,
+          };
+        })
       );
       if (itemsError) throw itemsError;
 
@@ -214,7 +244,12 @@ export default function POSClient({
 
       router.push(`/sales/${sale.id}/receipt`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Checkout failed. Please try again.");
+      if (createdSaleId) {
+        await supabase.from("sales").delete().eq("id", createdSaleId);
+      }
+      const message =
+        err instanceof Error ? err.message : (err as { message?: string } | null)?.message ?? null;
+      setError(message ?? "Checkout failed. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -251,7 +286,7 @@ export default function POSClient({
               className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             {filteredParts.length > 0 && (
-              <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden">
+              <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-80 overflow-y-auto">
                 {filteredParts.map((p) => (
                   <button
                     key={p.id}
@@ -262,7 +297,8 @@ export default function POSClient({
                       {p.name} {p.sku && <span className="text-slate-400">({p.sku})</span>}
                     </span>
                     <span className="text-slate-500">
-                      ${p.sell_price.toFixed(2)} · {p.qty_on_hand} in stock
+                      {admin && <>Cost ${(p.cost_price ?? 0).toFixed(2)} · </>}${p.sell_price.toFixed(2)} ·{" "}
+                      {p.qty_on_hand} in stock
                     </span>
                   </button>
                 ))}
@@ -276,8 +312,10 @@ export default function POSClient({
             <thead className="bg-slate-50 text-slate-600">
               <tr>
                 <th className="text-left px-4 py-2 font-medium">Part</th>
+                {admin && <th className="text-right px-4 py-2 font-medium">Cost</th>}
                 <th className="text-right px-4 py-2 font-medium">Price</th>
                 <th className="text-center px-4 py-2 font-medium">Qty</th>
+                <th className="text-right px-4 py-2 font-medium">Discount</th>
                 <th className="text-right px-4 py-2 font-medium">Line Total</th>
                 <th className="px-4 py-2"></th>
               </tr>
@@ -285,39 +323,58 @@ export default function POSClient({
             <tbody className="divide-y divide-slate-100">
               {cart.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
+                  <td colSpan={admin ? 7 : 6} className="px-4 py-8 text-center text-slate-400">
                     Cart is empty — scan or search for a part above.
                   </td>
                 </tr>
               ) : (
-                cart.map((l) => (
-                  <tr key={l.part.id}>
-                    <td className="px-4 py-2 text-slate-800">{l.part.name}</td>
-                    <td className="px-4 py-2 text-right text-slate-600">
-                      ${l.part.sell_price.toFixed(2)}
-                    </td>
-                    <td className="px-4 py-2 text-center">
-                      <input
-                        type="number"
-                        min={1}
-                        value={l.qty}
-                        onChange={(e) => updateQty(l.part.id, Number(e.target.value))}
-                        className="w-16 text-center rounded border border-slate-300 py-1"
-                      />
-                    </td>
-                    <td className="px-4 py-2 text-right font-medium text-slate-900">
-                      ${(l.qty * l.part.sell_price).toFixed(2)}
-                    </td>
-                    <td className="px-4 py-2 text-right">
-                      <button
-                        onClick={() => removeLine(l.part.id)}
-                        className="text-red-500 hover:text-red-700 text-xs font-medium"
-                      >
-                        Remove
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                cart.map((l) => {
+                  const unitPrice = Math.max(0, l.part.sell_price - l.discount);
+                  return (
+                    <tr key={l.part.id}>
+                      <td className="px-4 py-2 text-slate-800">{l.part.name}</td>
+                      {admin && (
+                        <td className="px-4 py-2 text-right text-slate-500">
+                          ${(l.part.cost_price ?? 0).toFixed(2)}
+                        </td>
+                      )}
+                      <td className="px-4 py-2 text-right text-slate-600">
+                        ${l.part.sell_price.toFixed(2)}
+                      </td>
+                      <td className="px-4 py-2 text-center">
+                        <input
+                          type="number"
+                          min={1}
+                          value={l.qty}
+                          onChange={(e) => updateQty(l.part.id, Number(e.target.value))}
+                          className="w-16 text-center rounded border border-slate-300 py-1"
+                        />
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        <input
+                          type="number"
+                          min={0}
+                          max={l.part.sell_price}
+                          value={l.discount}
+                          onChange={(e) => updateLineDiscount(l.part.id, Number(e.target.value))}
+                          title="Discount per unit"
+                          className="w-20 text-right rounded border border-slate-300 py-1 px-1"
+                        />
+                      </td>
+                      <td className="px-4 py-2 text-right font-medium text-slate-900">
+                        ${(l.qty * unitPrice).toFixed(2)}
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        <button
+                          onClick={() => removeLine(l.part.id)}
+                          className="text-red-500 hover:text-red-700 text-xs font-medium"
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -488,6 +545,12 @@ export default function POSClient({
               <span>Subtotal</span>
               <span>${subtotal.toFixed(2)}</span>
             </div>
+            {itemDiscountsTotal > 0 && (
+              <div className="flex justify-between text-sm text-slate-600">
+                <span>Item Discounts</span>
+                <span>-${itemDiscountsTotal.toFixed(2)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-sm text-slate-600">
               <span>Discount</span>
               <span>-${discount.toFixed(2)}</span>
