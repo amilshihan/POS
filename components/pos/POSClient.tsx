@@ -61,7 +61,21 @@ export default function POSClient({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  const [openingDrawer, setOpeningDrawer] = useState(false);
   const scanInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleOpenDrawer() {
+    setOpeningDrawer(true);
+    try {
+      const res = await fetch("/api/cash-drawer/open", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Could not open the drawer.");
+    } catch (err) {
+      setAlertMessage(err instanceof Error ? err.message : "Could not open the drawer.");
+    } finally {
+      setOpeningDrawer(false);
+    }
+  }
 
   const subtotal = useMemo(
     () => cart.reduce((sum, l) => sum + l.qty * l.part.sell_price, 0),
@@ -259,7 +273,22 @@ export default function POSClient({
     <>
     <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div className="lg:col-span-2 space-y-4">
-        <h1 className="text-2xl font-bold text-slate-900">New Sale</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-slate-900">New Sale</h1>
+          <button
+            onClick={handleOpenDrawer}
+            disabled={openingDrawer}
+            title="Open the cash drawer"
+            className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 transition"
+          >
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-4 h-4">
+              <rect x="2.5" y="4" width="15" height="9" rx="1" />
+              <path d="M2.5 13v2.5a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1V13" />
+              <path d="M8.5 8.5h3" strokeLinecap="round" />
+            </svg>
+            {openingDrawer ? "Opening..." : "Open Drawer"}
+          </button>
+        </div>
 
         <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
           <label className="block text-sm font-medium text-slate-700">
