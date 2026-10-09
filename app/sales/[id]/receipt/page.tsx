@@ -38,11 +38,12 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
     phone: null,
     receipt_width_mm: 80,
     receipt_footer: "Thank you!",
+    auto_open_drawer_on_print: false,
   };
 
   return (
     <>
-      <PrintTrigger redirectTo="/pos" />
+      <PrintTrigger redirectTo="/pos" autoOpenDrawer={settings.auto_open_drawer_on_print} />
       <ReceiptView sale={sale} settings={settings} />
     </>
   );

@@ -13,6 +13,7 @@ type Settings = {
   cheque_alert_days: number;
   printer_name: string | null;
   receipt_footer: string | null;
+  auto_open_drawer_on_print: boolean;
 };
 
 // Suggestions only — a web page can't see a device's installed printers.
@@ -40,6 +41,7 @@ export default function SettingsClient({ settings }: { settings: Settings | null
     cheque_alert_days: String(settings?.cheque_alert_days ?? 7),
     printer_name: settings?.printer_name ?? "",
     receipt_footer: settings?.receipt_footer ?? "Thank you!",
+    auto_open_drawer_on_print: settings?.auto_open_drawer_on_print ?? false,
   });
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -57,6 +59,7 @@ export default function SettingsClient({ settings }: { settings: Settings | null
         cheque_alert_days: Number(form.cheque_alert_days),
         printer_name: form.printer_name || null,
         receipt_footer: form.receipt_footer.slice(0, 512) || "Thank you!",
+        auto_open_drawer_on_print: form.auto_open_drawer_on_print,
       })
       .eq("id", true);
     setSaving(false);
@@ -158,6 +161,24 @@ export default function SettingsClient({ settings }: { settings: Settings | null
                 Reminder of which printer to pick when the receipt print dialog opens — browsers
                 don&apos;t allow a page to select a printer automatically.
               </p>
+            </div>
+            <div className="flex items-start gap-3 rounded-lg border border-slate-200 p-3">
+              <input
+                type="checkbox"
+                id="auto-open-drawer"
+                checked={form.auto_open_drawer_on_print}
+                onChange={(e) => setForm({ ...form, auto_open_drawer_on_print: e.target.checked })}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300"
+              />
+              <label htmlFor="auto-open-drawer" className="text-sm">
+                <span className="block font-medium text-slate-700">
+                  Automatic drawer open once the bill prints
+                </span>
+                <span className="block text-xs text-slate-400 mt-0.5">
+                  Opens the cash drawer right after a sale receipt finishes printing. Requires the
+                  printer above to be set correctly.
+                </span>
+              </label>
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Receipt footer</label>

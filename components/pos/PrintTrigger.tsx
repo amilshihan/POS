@@ -3,11 +3,20 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-export default function PrintTrigger({ redirectTo }: { redirectTo?: string }) {
+export default function PrintTrigger({
+  redirectTo,
+  autoOpenDrawer,
+}: {
+  redirectTo?: string;
+  autoOpenDrawer?: boolean;
+}) {
   const router = useRouter();
 
   useEffect(() => {
     function handleAfterPrint() {
+      if (autoOpenDrawer) {
+        fetch("/api/cash-drawer/open", { method: "POST" }).catch(() => {});
+      }
       if (redirectTo) router.push(redirectTo);
     }
     window.addEventListener("afterprint", handleAfterPrint);
@@ -16,7 +25,7 @@ export default function PrintTrigger({ redirectTo }: { redirectTo?: string }) {
       clearTimeout(t);
       window.removeEventListener("afterprint", handleAfterPrint);
     };
-  }, [redirectTo, router]);
+  }, [redirectTo, autoOpenDrawer, router]);
 
   return null;
 }
