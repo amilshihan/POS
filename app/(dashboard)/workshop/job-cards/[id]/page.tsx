@@ -26,7 +26,11 @@ export default async function JobCardDetailPage({ params }: { params: Promise<{ 
       .order("created_at"),
     supabase.from("service_types").select("*").eq("is_active", true).order("name"),
     supabase.from("profiles").select("id, full_name").eq("is_active", true).order("full_name"),
-    supabase.from("parts").select("id, sku, name, sell_price, qty_on_hand").eq("is_active", true).order("name"),
+    supabase
+      .from("parts")
+      .select("id, sku, name, sell_price, retail_price, qty_on_hand")
+      .eq("is_active", true)
+      .order("name"),
   ]);
 
   if (jobCardRes.error || !jobCardRes.data) {

@@ -13,6 +13,8 @@ import {
   btnPrimary,
   btnSecondary,
   cardSurface,
+  iconActionBtn,
+  iconActionBtnDanger,
 } from "@/lib/ui";
 
 type JobCard = {
@@ -81,7 +83,14 @@ type PartRow = {
 
 type ServiceTypeOption = { id: string; name: string; default_labor_charge: number; estimated_time_mins: number | null };
 type Mechanic = { id: string; full_name: string };
-type ProductOption = { id: string; sku: string | null; name: string; sell_price: number; qty_on_hand: number };
+type ProductOption = {
+  id: string;
+  sku: string | null;
+  name: string;
+  sell_price: number;
+  retail_price: number;
+  qty_on_hand: number;
+};
 
 function IconTrash({ className }: { className?: string }) {
   return (
@@ -91,6 +100,14 @@ function IconTrash({ className }: { className?: string }) {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function IconPencil({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className={className}>
+      <path d="M13.5 3.5l3 3L6 17H3v-3L13.5 3.5Z" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -169,6 +186,11 @@ export default function JobCardDetailClient({
   const [partQty, setPartQty] = useState("1");
   const [partUnitPrice, setPartUnitPrice] = useState("0");
   const [partSaving, setPartSaving] = useState(false);
+
+  const [editingPart, setEditingPart] = useState<PartRow | null>(null);
+  const [editQty, setEditQty] = useState("1");
+  const [editUnitPrice, setEditUnitPrice] = useState("0");
+  const [editPartSaving, setEditPartSaving] = useState(false);
 
   const canTransition = jobCard.status !== "completed" && jobCard.status !== "cancelled";
   const nextStatusLabel = jobCard.status === "in_progress" ? "Mark as completed" : "Mark as in progress";
@@ -320,6 +342,30 @@ export default function JobCardDetailClient({
         router.refresh();
       },
     });
+  }
+
+  function openEditPart(p: PartRow) {
+    setEditingPart(p);
+    setEditQty(String(p.qty));
+    setEditUnitPrice(String(p.unit_price));
+  }
+
+  const editingProduct = editingPart ? products.find((pr) => pr.id === editingPart.part_id) : undefined;
+
+  async function handleSaveEditPart() {
+    if (!editingPart) return;
+    setEditPartSaving(true);
+    const { error } = await supabase
+      .from("job_card_parts")
+      .update({ qty: Number(editQty) || 1, unit_price: Number(editUnitPrice) || 0 })
+      .eq("id", editingPart.id);
+    setEditPartSaving(false);
+    if (error) {
+      setAlertMessage(error.message);
+      return;
+    }
+    setEditingPart(null);
+    router.refresh();
   }
 
   return (
@@ -552,9 +598,19 @@ export default function JobCardDetailClient({
                   <td className="px-3 py-2 text-right text-ink">LKR {p.unit_price.toFixed(2)}</td>
                   <td className="px-3 py-2 text-right text-ink">LKR {p.line_total.toFixed(2)}</td>
                   <td className="px-3 py-2 text-right print:hidden">
-                    <button onClick={() => handleDeletePart(p)} title="Remove" aria-label="Remove" className="text-error hover:underline text-xs">
-                      Remove
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button onClick={() => openEditPart(p)} title="Edit" aria-label="Edit" className={iconActionBtn}>
+                        <IconPencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeletePart(p)}
+                        title="Delete"
+                        aria-label="Delete"
+                        className={iconActionBtnDanger}
+                      >
+                        <IconTrash className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -838,6 +894,12 @@ export default function JobCardDetailClient({
                   onChange={(e) => setPartUnitPrice(e.target.value)}
                   className={`${inputBase} mt-1`}
                 />
+                {(() => {
+                  const selected = products.find((pr) => pr.id === partProductId);
+                  return selected ? (
+                    <p className={`${helperText} mt-1`}>Retail price: LKR {selected.retail_price.toFixed(2)}</p>
+                  ) : null;
+                })()}
               </div>
             </div>
             <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-1">
@@ -846,6 +908,62 @@ export default function JobCardDetailClient({
               </button>
               <button onClick={handleSavePart} disabled={partSaving} className={btnPrimary}>
                 {partSaving ? "Saving..." : "Save Part"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingPart && (
+        <div className="fixed inset-0 bg-ink/40 flex items-center justify-center z-20 p-4 print:hidden">
+          <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8 w-full max-w-lg space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between">
+              <h2 className={modalTitle}>Edit Part</h2>
+              <button
+                onClick={() => setEditingPart(null)}
+                aria-label="Close"
+                className="text-muted hover:text-ink text-xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+            <div>
+              <label className={fieldLabel}>Product</label>
+              <p className="text-sm text-ink mt-1">{editingPart.parts?.name}</p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="w-full sm:w-1/2">
+                <label className={fieldLabel}>
+                  Quantity <span className={requiredMark}>*</span>
+                </label>
+                <input
+                  type="number"
+                  value={editQty}
+                  onChange={(e) => setEditQty(e.target.value)}
+                  className={`${inputBase} mt-1`}
+                />
+              </div>
+              <div className="w-full sm:w-1/2">
+                <label className={fieldLabel}>
+                  Unit Price (Charge) <span className={requiredMark}>*</span>
+                </label>
+                <input
+                  type="number"
+                  value={editUnitPrice}
+                  onChange={(e) => setEditUnitPrice(e.target.value)}
+                  className={`${inputBase} mt-1`}
+                />
+                {editingProduct && (
+                  <p className={`${helperText} mt-1`}>Retail price: LKR {editingProduct.retail_price.toFixed(2)}</p>
+                )}
+              </div>
+            </div>
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-1">
+              <button onClick={() => setEditingPart(null)} className={btnSecondary}>
+                Cancel
+              </button>
+              <button onClick={handleSaveEditPart} disabled={editPartSaving} className={btnPrimary}>
+                {editPartSaving ? "Saving..." : "Save Changes"}
               </button>
             </div>
           </div>
