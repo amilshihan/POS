@@ -25,7 +25,7 @@ type CustomerRow = {
   credit_balance: number;
 };
 
-type CartLine = { part: PartRow; qty: number; discount: number };
+type CartLine = { part: PartRow; qty: number; discount: number; packageId?: string };
 
 type PaymentMethod = "cash" | "credit" | "cheque" | "mixed";
 
@@ -62,6 +62,10 @@ export default function POSClient({
   const [submitting, setSubmitting] = useState(false);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [openingDrawer, setOpeningDrawer] = useState(false);
+  const [packagePrices, setPackagePrices] = useState<Record<string, number>>({});
+  const [showPackageModal, setShowPackageModal] = useState(false);
+  const [packageSelection, setPackageSelection] = useState<Set<string>>(new Set());
+  const [packagePriceInput, setPackagePriceInput] = useState("");
   const scanInputRef = useRef<HTMLInputElement>(null);
 
   async function handleOpenDrawer() {
@@ -77,13 +81,26 @@ export default function POSClient({
     }
   }
 
+  function lineEffectiveUnitPrice(l: CartLine): number {
+    if (l.packageId) {
+      const group = cart.filter((x) => x.packageId === l.packageId);
+      const groupNormalTotal = group.reduce((s, x) => s + x.qty * x.part.sell_price, 0);
+      const packageTotal = packagePrices[l.packageId] ?? groupNormalTotal;
+      if (groupNormalTotal <= 0 || l.qty <= 0) return 0;
+      const lineNormalTotal = l.qty * l.part.sell_price;
+      const lineShare = (packageTotal * lineNormalTotal) / groupNormalTotal;
+      return lineShare / l.qty;
+    }
+    return Math.max(0, l.part.sell_price - l.discount);
+  }
+
   const subtotal = useMemo(
     () => cart.reduce((sum, l) => sum + l.qty * l.part.sell_price, 0),
     [cart]
   );
   const itemDiscountsTotal = useMemo(
-    () => cart.reduce((sum, l) => sum + l.qty * l.discount, 0),
-    [cart]
+    () => cart.reduce((sum, l) => sum + (l.qty * l.part.sell_price - l.qty * lineEffectiveUnitPrice(l)), 0),
+    [cart, packagePrices]
   );
   const total = Math.max(0, subtotal - itemDiscountsTotal - discount);
 
@@ -138,7 +155,63 @@ export default function POSClient({
   }
 
   function removeLine(partId: string) {
-    setCart((prev) => prev.filter((l) => l.part.id !== partId));
+    setCart((prev) => {
+      const removed = prev.find((l) => l.part.id === partId);
+      const next = prev.filter((l) => l.part.id !== partId);
+      if (removed?.packageId) {
+        const remaining = next.filter((l) => l.packageId === removed.packageId);
+        if (remaining.length < 2) {
+          return next.map((l) => (l.packageId === removed.packageId ? { ...l, packageId: undefined } : l));
+        }
+      }
+      return next;
+    });
+  }
+
+  function openPackageModal() {
+    setPackageSelection(new Set());
+    setPackagePriceInput("");
+    setShowPackageModal(true);
+  }
+
+  function togglePackageSelection(partId: string) {
+    setPackageSelection((prev) => {
+      const next = new Set(prev);
+      next.has(partId) ? next.delete(partId) : next.add(partId);
+      return next;
+    });
+  }
+
+  const packageableLines = cart.filter((l) => !l.packageId);
+  const packageSelectionNormalTotal = cart
+    .filter((l) => packageSelection.has(l.part.id))
+    .reduce((sum, l) => sum + l.qty * l.part.sell_price, 0);
+
+  function handleCreatePackage() {
+    if (packageSelection.size < 2) {
+      setAlertMessage("Select at least two items to make a package.");
+      return;
+    }
+    const price = Number(packagePriceInput);
+    if (!price || price <= 0) {
+      setAlertMessage("Enter a package price.");
+      return;
+    }
+    const packageId = crypto.randomUUID();
+    setCart((prev) =>
+      prev.map((l) => (packageSelection.has(l.part.id) ? { ...l, packageId, discount: 0 } : l))
+    );
+    setPackagePrices((prev) => ({ ...prev, [packageId]: price }));
+    setShowPackageModal(false);
+  }
+
+  function breakPackage(packageId: string) {
+    setCart((prev) => prev.map((l) => (l.packageId === packageId ? { ...l, packageId: undefined } : l)));
+    setPackagePrices((prev) => {
+      const next = { ...prev };
+      delete next[packageId];
+      return next;
+    });
   }
 
   function handleScanKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -228,19 +301,36 @@ export default function POSClient({
       if (saleError || !sale) throw saleError ?? new Error("Could not create sale");
       createdSaleId = sale.id;
 
-      const { error: itemsError } = await supabase.from("sale_items").insert(
-        cart.map((l) => {
-          const unitPrice = Math.max(0, l.part.sell_price - l.discount);
-          return {
-            sale_id: sale.id,
+      const ungroupedLines = cart.filter((l) => !l.packageId);
+      if (ungroupedLines.length > 0) {
+        const { error: itemsError } = await supabase.from("sale_items").insert(
+          ungroupedLines.map((l) => {
+            const unitPrice = Math.max(0, l.part.sell_price - l.discount);
+            return {
+              sale_id: sale.id,
+              part_id: l.part.id,
+              qty: l.qty,
+              unit_price: unitPrice,
+              line_total: l.qty * unitPrice,
+            };
+          })
+        );
+        if (itemsError) throw itemsError;
+      }
+
+      const packageIds = Array.from(new Set(cart.map((l) => l.packageId).filter((id): id is string => !!id)));
+      for (const packageId of packageIds) {
+        const group = cart.filter((l) => l.packageId === packageId);
+        const { error: packageError } = await supabase.rpc("create_package_sale_items", {
+          p_sale_id: sale.id,
+          p_items: group.map((l) => ({
             part_id: l.part.id,
             qty: l.qty,
-            unit_price: unitPrice,
-            line_total: l.qty * unitPrice,
-          };
-        })
-      );
-      if (itemsError) throw itemsError;
+            unit_price: Number(lineEffectiveUnitPrice(l).toFixed(2)),
+          })),
+        });
+        if (packageError) throw packageError;
+      }
 
       if (paymentMethod === "cheque") {
         const { error: chequeError } = await supabase.from("cheques").insert({
@@ -275,19 +365,34 @@ export default function POSClient({
       <div className="lg:col-span-2 space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-slate-900">New Sale</h1>
-          <button
-            onClick={handleOpenDrawer}
-            disabled={openingDrawer}
-            title="Open the cash drawer"
-            className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 transition"
-          >
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-4 h-4">
-              <rect x="2.5" y="4" width="15" height="9" rx="1" />
-              <path d="M2.5 13v2.5a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1V13" />
-              <path d="M8.5 8.5h3" strokeLinecap="round" />
-            </svg>
-            {openingDrawer ? "Opening..." : "Open Drawer"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={openPackageModal}
+              disabled={packageableLines.length < 2}
+              title="Sell two or more items together at one combined price"
+              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 transition"
+            >
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-4 h-4">
+                <path d="M3 6.5 10 3l7 3.5-7 3.5-7-3.5Z" strokeLinejoin="round" />
+                <path d="M3 6.5V13l7 3.5 7-3.5V6.5" strokeLinejoin="round" />
+                <path d="M10 10v6.5" />
+              </svg>
+              Create Package
+            </button>
+            <button
+              onClick={handleOpenDrawer}
+              disabled={openingDrawer}
+              title="Open the cash drawer"
+              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 transition"
+            >
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-4 h-4">
+                <rect x="2.5" y="4" width="15" height="9" rx="1" />
+                <path d="M2.5 13v2.5a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1V13" />
+                <path d="M8.5 8.5h3" strokeLinecap="round" />
+              </svg>
+              {openingDrawer ? "Opening..." : "Open Drawer"}
+            </button>
+          </div>
         </div>
 
         <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
@@ -358,10 +463,17 @@ export default function POSClient({
                 </tr>
               ) : (
                 cart.map((l) => {
-                  const unitPrice = Math.max(0, l.part.sell_price - l.discount);
+                  const unitPrice = lineEffectiveUnitPrice(l);
                   return (
-                    <tr key={l.part.id}>
-                      <td className="px-4 py-2 text-slate-800">{l.part.name}</td>
+                    <tr key={l.part.id} className={l.packageId ? "bg-amber-50" : undefined}>
+                      <td className="px-4 py-2 text-slate-800">
+                        {l.part.name}
+                        {l.packageId && (
+                          <span className="ml-2 inline-flex items-center rounded-full bg-amber-200 text-amber-900 text-[10px] font-semibold px-1.5 py-0.5 align-middle">
+                            📦 Package
+                          </span>
+                        )}
+                      </td>
                       {admin && (
                         <td className="px-4 py-2 text-right text-slate-500">
                           ${(l.part.cost_price ?? 0).toFixed(2)}
@@ -380,20 +492,32 @@ export default function POSClient({
                         />
                       </td>
                       <td className="px-4 py-2 text-right">
-                        <input
-                          type="number"
-                          min={0}
-                          max={l.part.sell_price}
-                          value={l.discount}
-                          onChange={(e) => updateLineDiscount(l.part.id, Number(e.target.value))}
-                          title="Discount per unit"
-                          className="w-20 text-right rounded border border-slate-300 py-1 px-1"
-                        />
+                        {l.packageId ? (
+                          <span className="text-xs text-amber-700">pkg price</span>
+                        ) : (
+                          <input
+                            type="number"
+                            min={0}
+                            max={l.part.sell_price}
+                            value={l.discount}
+                            onChange={(e) => updateLineDiscount(l.part.id, Number(e.target.value))}
+                            title="Discount per unit"
+                            className="w-20 text-right rounded border border-slate-300 py-1 px-1"
+                          />
+                        )}
                       </td>
                       <td className="px-4 py-2 text-right font-medium text-slate-900">
                         ${(l.qty * unitPrice).toFixed(2)}
                       </td>
-                      <td className="px-4 py-2 text-right">
+                      <td className="px-4 py-2 text-right whitespace-nowrap">
+                        {l.packageId && (
+                          <button
+                            onClick={() => breakPackage(l.packageId!)}
+                            className="text-amber-700 hover:text-amber-900 text-xs font-medium mr-3"
+                          >
+                            Break
+                          </button>
+                        )}
                         <button
                           onClick={() => removeLine(l.part.id)}
                           className="text-red-500 hover:text-red-700 text-xs font-medium"
@@ -602,6 +726,85 @@ export default function POSClient({
         </div>
       </div>
     </div>
+
+    {showPackageModal && (
+      <div
+        className="fixed inset-0 bg-black/40 flex items-center justify-center z-40 p-4"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) setShowPackageModal(false);
+        }}
+      >
+        <div className="bg-white rounded-xl p-6 w-full max-w-md space-y-4">
+          <div>
+            <h2 className="font-semibold text-lg text-slate-900">Create Package</h2>
+            <p className="text-sm text-slate-500">
+              Select two or more cart items and set one combined price for all of them together.
+            </p>
+          </div>
+
+          <div className="max-h-56 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
+            {packageableLines.map((l) => (
+              <label
+                key={l.part.id}
+                className="flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-slate-50"
+              >
+                <span className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={packageSelection.has(l.part.id)}
+                    onChange={() => togglePackageSelection(l.part.id)}
+                  />
+                  {l.part.name} × {l.qty}
+                </span>
+                <span className="text-slate-500">${(l.qty * l.part.sell_price).toFixed(2)}</span>
+              </label>
+            ))}
+            {packageableLines.length === 0 && (
+              <p className="px-3 py-4 text-sm text-slate-400 text-center">
+                No ungrouped items in the cart. Add items first, or break an existing package.
+              </p>
+            )}
+          </div>
+
+          {packageSelection.size > 0 && (
+            <p className="text-sm text-slate-500">
+              Normal total for selected items: ${packageSelectionNormalTotal.toFixed(2)}
+            </p>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Package price</label>
+            <input
+              type="number"
+              min={0}
+              value={packagePriceInput}
+              onChange={(e) => setPackagePriceInput(e.target.value)}
+              placeholder="0.00"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2"
+            />
+            <p className="text-xs text-slate-400 mt-1">
+              This can be less than the normal total, as long as it still covers the combined cost of
+              the selected items plus 3% profit.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              onClick={() => setShowPackageModal(false)}
+              className="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleCreatePackage}
+              className="px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700"
+            >
+              Create Package
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
 
     {alertMessage && (
       <div
