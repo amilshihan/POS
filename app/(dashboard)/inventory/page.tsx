@@ -8,11 +8,12 @@ export default async function InventoryPage() {
   const { profile } = await getCurrentUserAndProfile();
   const admin = isAdmin(profile);
 
-  const [partsRes, categoriesRes, suppliersRes, taxesRes] = await Promise.all([
+  const [partsRes, categoriesRes, suppliersRes, taxesRes, drumPricesRes] = await Promise.all([
     supabase.from(admin ? "parts" : "parts_cashier").select("*").order("name"),
     supabase.from("categories").select("*").order("name"),
     supabase.from("suppliers").select("id, name").order("name"),
     supabase.from("taxes").select("*").order("name"),
+    supabase.from("drum_retail_prices").select("*").order("sort_order"),
   ]);
 
   return (
@@ -22,6 +23,7 @@ export default async function InventoryPage() {
       suppliers={suppliersRes.data ?? []}
       taxes={taxesRes.data ?? []}
       admin={admin}
+      drumRetailPrices={drumPricesRes.data ?? []}
     />
   );
 }

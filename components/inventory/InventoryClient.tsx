@@ -3,12 +3,22 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useCurrencySymbol } from "@/components/providers/CurrencyProvider";
 import { resolveOrCreateGroupPath, resolveOrCreateSupplier } from "@/lib/groups";
 import { buildCsv, parseCsv, rowsToObjects, toBool, toNumOrNull, toNumOrZero } from "@/lib/csv";
 
 type Category = { id: string; name: string; parent_id: string | null };
 type Supplier = { id: string; name: string };
 type Tax = { id: string; name: string; rate_percent: number; is_default: boolean };
+type DrumRetailPrice = {
+  id: string;
+  part_id: string;
+  label: string;
+  quantity: number;
+  sell_price: number;
+  is_active: boolean;
+  sort_order: number;
+};
 type SortColumn = "name" | "group" | "barcode" | "cost" | "price" | "stock";
 type TextFilterColumn = "name" | "group" | "barcode";
 type RangeFilterColumn = "cost" | "price" | "stock";
@@ -136,6 +146,7 @@ type Part = {
   is_drum: boolean;
   pack_size: string | null;
   drum_measurement: string | null;
+  open_qty_remaining?: number;
   supplier_id?: string | null;
   qty_on_hand: number;
   reorder_point?: number | null;
@@ -245,6 +256,8 @@ const emptyForm = {
   is_drum: false,
   pack_size: "",
   drum_measurement: "",
+  open_qty_remaining: "0",
+  retailTiers: [] as { id?: string; label: string; quantity: string; sell_price: string }[],
   is_active: true,
   qty_on_hand: "0",
   supplier_id: "",
@@ -260,15 +273,18 @@ export default function InventoryClient({
   suppliers,
   taxes,
   admin,
+  drumRetailPrices,
 }: {
   initialParts: Part[];
   categories: Category[];
   suppliers: Supplier[];
   taxes: Tax[];
   admin: boolean;
+  drumRetailPrices: DrumRetailPrice[];
 }) {
   const router = useRouter();
   const supabase = createClient();
+  const currency = useCurrencySymbol();
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
@@ -350,7 +366,11 @@ export default function InventoryClient({
 
   function stockDisplay(p: Part): string {
     if (p.is_service) return "—";
-    if (p.is_drum) return p.pack_size || "—";
+    if (p.is_drum) {
+      const sealed = `${p.qty_on_hand} drum${p.qty_on_hand === 1 ? "" : "s"}`;
+      const open = p.open_qty_remaining ? ` + ${p.open_qty_remaining}${p.drum_measurement ?? ""} open` : "";
+      return sealed + open;
+    }
     return `${p.qty_on_hand} ${p.unit}`;
   }
 
@@ -363,9 +383,9 @@ export default function InventoryClient({
       case "barcode":
         return p.barcode ?? "";
       case "cost":
-        return `$${Number(p.cost_price ?? 0).toFixed(2)}`;
+        return `${currency}${Number(p.cost_price ?? 0).toFixed(2)}`;
       case "price":
-        return `$${p.sell_price.toFixed(2)}`;
+        return `${currency}${p.sell_price.toFixed(2)}`;
       case "stock":
         return stockDisplay(p);
     }
@@ -537,6 +557,11 @@ export default function InventoryClient({
       is_drum: p.is_drum,
       pack_size: p.pack_size ?? "",
       drum_measurement: p.drum_measurement ?? "",
+      open_qty_remaining: String(p.open_qty_remaining ?? 0),
+      retailTiers: drumRetailPrices
+        .filter((t) => t.part_id === p.id)
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .map((t) => ({ id: t.id, label: t.label, quantity: String(t.quantity), sell_price: String(t.sell_price) })),
       is_active: p.is_active,
       qty_on_hand: String(p.qty_on_hand),
       supplier_id: p.supplier_id ?? "",
@@ -548,6 +573,21 @@ export default function InventoryClient({
     });
     setShowForm(true);
     setError(null);
+  }
+
+  function addRetailTier() {
+    setForm((f) => ({ ...f, retailTiers: [...f.retailTiers, { label: "", quantity: "", sell_price: "" }] }));
+  }
+
+  function updateRetailTier(index: number, field: "label" | "quantity" | "sell_price", value: string) {
+    setForm((f) => ({
+      ...f,
+      retailTiers: f.retailTiers.map((t, i) => (i === index ? { ...t, [field]: value } : t)),
+    }));
+  }
+
+  function removeRetailTier(index: number) {
+    setForm((f) => ({ ...f, retailTiers: f.retailTiers.filter((_, i) => i !== index) }));
   }
 
   async function handleSave() {
@@ -579,8 +619,64 @@ export default function InventoryClient({
     const sellPrice = Number(form.sell_price) || 0;
     const minSellPrice = Math.ceil(costPrice * 1.03 * 100) / 100;
     if (costPrice > 0 && sellPrice < minSellPrice - 0.01) {
-      setError(`Selling price must be at least Cost + 3% profit ($${minSellPrice.toFixed(2)}).`);
+      setError(`Selling price must be at least Cost + 3% profit (${currency}${minSellPrice.toFixed(2)}).`);
       return;
+    }
+
+    if (form.is_drum) {
+      if (!form.pack_size.trim()) {
+        setError("Pack Size is required for Drum / Bucket products.");
+        return;
+      }
+      if (!Number(form.pack_size) || Number(form.pack_size) <= 0) {
+        setError("Pack Size must be a number (e.g. 200) — pick the unit in Measurement, not here.");
+        return;
+      }
+      if (!form.drum_measurement) {
+        setError("Measurement is required for Drum / Bucket products.");
+        return;
+      }
+      if (!form.supplier_id) {
+        setError("Supplier is required for Drum / Bucket products.");
+        return;
+      }
+      const packSizeNum = Number(form.pack_size) || 0;
+      const openQtyNum = Number(form.open_qty_remaining) || 0;
+      if (openQtyNum < 0) {
+        setError("Open drum remaining can't be negative.");
+        return;
+      }
+      if (packSizeNum > 0 && openQtyNum > packSizeNum) {
+        setError("Open drum remaining can't be more than the pack size.");
+        return;
+      }
+      for (const tier of form.retailTiers) {
+        if (!tier.label.trim()) {
+          setError("Each retail size needs a label (e.g. 250ml).");
+          return;
+        }
+        const qty = Number(tier.quantity);
+        if (!qty || qty <= 0) {
+          setError(`Enter a valid quantity for "${tier.label}".`);
+          return;
+        }
+        if (packSizeNum > 0 && qty > packSizeNum) {
+          setError(`"${tier.label}" quantity can't be more than the drum's pack size.`);
+          return;
+        }
+        const price = Number(tier.sell_price);
+        if (!price || price <= 0) {
+          setError(`Enter a valid price for "${tier.label}".`);
+          return;
+        }
+        if (packSizeNum > 0 && costPrice > 0) {
+          const tierFloor = Math.ceil(((costPrice / packSizeNum) * qty * 1.03) * 100) / 100;
+          if (price < tierFloor - 0.01) {
+            setError(`"${tier.label}" price must be at least Cost + 3% profit (${currency}${tierFloor.toFixed(2)}).`);
+            return;
+          }
+        }
+      }
     }
 
     const trimmedSku = form.sku.trim();
@@ -626,6 +722,7 @@ export default function InventoryClient({
       is_drum: form.is_drum,
       pack_size: form.is_drum ? form.pack_size.trim() || null : null,
       drum_measurement: form.is_drum ? form.drum_measurement || null : null,
+      open_qty_remaining: form.is_drum ? Number(form.open_qty_remaining) || 0 : 0,
       is_active: form.is_active,
       qty_on_hand: Number(form.qty_on_hand),
       supplier_id: form.supplier_id || null,
@@ -635,12 +732,12 @@ export default function InventoryClient({
       low_stock_threshold: Number(form.low_stock_threshold),
     };
 
-    const { error } = form.id
-      ? await supabase.from("parts").update(payload).eq("id", form.id)
-      : await supabase.from("parts").insert(payload);
+    const { data: savedPart, error } = form.id
+      ? await supabase.from("parts").update(payload).eq("id", form.id).select("id").single()
+      : await supabase.from("parts").insert(payload).select("id").single();
 
-    setSaving(false);
     if (error) {
+      setSaving(false);
       setError(
         error.code === "23505" && error.message.includes("sku")
           ? `SKU "${trimmedSku}" is already used by another product. SKUs must be unique.`
@@ -648,6 +745,33 @@ export default function InventoryClient({
       );
       return;
     }
+
+    const partId = savedPart.id as string;
+    const existingTierIds = drumRetailPrices.filter((t) => t.part_id === partId).map((t) => t.id);
+    const keepIds = new Set(form.is_drum ? form.retailTiers.filter((t) => t.id).map((t) => t.id!) : []);
+    const idsToDelete = existingTierIds.filter((id) => !keepIds.has(id));
+    if (idsToDelete.length > 0) {
+      await supabase.from("drum_retail_prices").delete().in("id", idsToDelete);
+    }
+    if (form.is_drum) {
+      for (let i = 0; i < form.retailTiers.length; i++) {
+        const tier = form.retailTiers[i];
+        const tierPayload = {
+          part_id: partId,
+          label: tier.label.trim(),
+          quantity: Number(tier.quantity),
+          sell_price: Number(tier.sell_price),
+          sort_order: i,
+        };
+        if (tier.id) {
+          await supabase.from("drum_retail_prices").update(tierPayload).eq("id", tier.id);
+        } else {
+          await supabase.from("drum_retail_prices").insert(tierPayload);
+        }
+      }
+    }
+
+    setSaving(false);
     setShowForm(false);
     router.refresh();
   }
@@ -872,6 +996,15 @@ export default function InventoryClient({
     setSelectedIds((prev) => {
       const allSelected = filtered.length > 0 && filtered.every((p) => prev.has(p.id));
       return allSelected ? new Set() : new Set(filtered.map((p) => p.id));
+    });
+  }
+
+  function toggleSelectedGroup(ids: string[]) {
+    setSelectedIds((prev) => {
+      const allSelected = ids.every((id) => prev.has(id));
+      const next = new Set(prev);
+      ids.forEach((id) => (allSelected ? next.delete(id) : next.add(id)));
+      return next;
     });
   }
 
@@ -1216,10 +1349,10 @@ export default function InventoryClient({
                 <td className="px-4 py-2 text-slate-500 font-mono text-xs">{p.barcode ?? ""}</td>
                 {admin && (
                   <td className="px-4 py-2 text-right text-slate-600">
-                    ${Number(p.cost_price ?? 0).toFixed(2)}
+                    {currency}{Number(p.cost_price ?? 0).toFixed(2)}
                   </td>
                 )}
-                <td className="px-4 py-2 text-right text-slate-800">${p.sell_price.toFixed(2)}</td>
+                <td className="px-4 py-2 text-right text-slate-800">{currency}{p.sell_price.toFixed(2)}</td>
                 <td className="px-4 py-2 text-right font-medium">{stockDisplay(p)}</td>
                 {admin && (
                   <td className="px-4 py-2 text-right whitespace-nowrap">
@@ -1452,13 +1585,22 @@ export default function InventoryClient({
                 <div className="grid grid-cols-2 gap-3">
                   {form.is_drum ? (
                     <div>
-                      <label className="text-xs text-slate-500">Pack Size</label>
+                      <label className="text-xs text-slate-500">
+                        Pack Size {form.drum_measurement ? `(${form.drum_measurement})` : ""}{" "}
+                        <span className="text-red-500">*</span>
+                      </label>
                       <input
+                        type="number"
+                        min={0}
+                        step="any"
                         value={form.pack_size}
                         onChange={(e) => setForm({ ...form, pack_size: e.target.value })}
-                        placeholder="e.g. 200L"
+                        placeholder="e.g. 200"
                         className="w-full rounded-lg border border-slate-300 px-3 py-2"
                       />
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Numbers only — pick the unit below in Measurement.
+                      </p>
                     </div>
                   ) : (
                     <div>
@@ -1472,7 +1614,9 @@ export default function InventoryClient({
                     </div>
                   )}
                   <div>
-                    <label className="text-xs text-slate-500">Supplier</label>
+                    <label className="text-xs text-slate-500">
+                      Supplier {form.is_drum && <span className="text-red-500">*</span>}
+                    </label>
                     <select
                       value={form.supplier_id}
                       onChange={(e) => setForm({ ...form, supplier_id: e.target.value })}
@@ -1488,8 +1632,41 @@ export default function InventoryClient({
                   </div>
                 </div>
                 {form.is_drum && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-slate-500">Sealed Drums</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={form.qty_on_hand}
+                        onChange={(e) => setForm({ ...form, qty_on_hand: e.target.value })}
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                      />
+                      <p className="text-[11px] text-slate-400 mt-0.5">Whole, unopened drums in stock.</p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-500">
+                        Open Drum Remaining {form.drum_measurement ? `(${form.drum_measurement})` : ""}
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        step="any"
+                        value={form.open_qty_remaining}
+                        onChange={(e) => setForm({ ...form, open_qty_remaining: e.target.value })}
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                      />
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Left in the drum currently being poured from.
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {form.is_drum && (
                   <div>
-                    <label className="text-xs text-slate-500">Measurement</label>
+                    <label className="text-xs text-slate-500">
+                      Measurement <span className="text-red-500">*</span>
+                    </label>
                     <select
                       value={form.drum_measurement}
                       onChange={(e) => setForm({ ...form, drum_measurement: e.target.value })}
@@ -1499,6 +1676,69 @@ export default function InventoryClient({
                       <option value="KG">KG</option>
                       <option value="L">L</option>
                     </select>
+                  </div>
+                )}
+                {form.is_drum && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs text-slate-500">
+                        Retail Sizes
+                        <span className="block text-[11px] text-slate-400 font-normal mt-0.5">
+                          Sell portions of this drum at their own price (e.g. 250ml for {currency}520). Leave empty
+                          to only sell whole drums.
+                        </span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={addRetailTier}
+                        className="shrink-0 text-xs font-medium text-blue-600 hover:text-blue-700"
+                      >
+                        + Add size
+                      </button>
+                    </div>
+                    {form.retailTiers.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 text-[11px] text-slate-400 px-0.5">
+                          <span>Label</span>
+                          <span>Qty ({form.drum_measurement || "unit"})</span>
+                          <span>Price</span>
+                          <span />
+                        </div>
+                        {form.retailTiers.map((tier, i) => (
+                          <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-center">
+                            <input
+                              value={tier.label}
+                              onChange={(e) => updateRetailTier(i, "label", e.target.value)}
+                              placeholder="e.g. 250ml"
+                              className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                            />
+                            <input
+                              type="number"
+                              step="any"
+                              value={tier.quantity}
+                              onChange={(e) => updateRetailTier(i, "quantity", e.target.value)}
+                              placeholder="0.25"
+                              className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                            />
+                            <input
+                              type="number"
+                              step="any"
+                              value={tier.sell_price}
+                              onChange={(e) => updateRetailTier(i, "sell_price", e.target.value)}
+                              placeholder="520"
+                              className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeRetailTier(i)}
+                              className="text-red-500 hover:text-red-700 text-xs font-medium px-1"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-3">
@@ -1700,28 +1940,49 @@ export default function InventoryClient({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filtered.slice(0, 200).map((p) => (
-                    <tr key={p.id}>
-                      <td className="px-3 py-1.5">
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.has(p.id)}
-                          onChange={() => toggleSelected(p.id)}
-                        />
-                      </td>
-                      <td
-                        className={`px-3 py-1.5 text-slate-800 ${
-                          activeFilterColumn === "cost" ||
-                          activeFilterColumn === "price" ||
-                          activeFilterColumn === "stock"
-                            ? "text-right"
-                            : "text-left"
-                        }`}
-                      >
-                        {columnValue(p, activeFilterColumn)}
-                      </td>
-                    </tr>
-                  ))}
+                  {(() => {
+                    const groups = new Map<string, { ids: string[]; count: number }>();
+                    for (const p of filtered.slice(0, 200)) {
+                      const value = columnValue(p, activeFilterColumn);
+                      const g = groups.get(value);
+                      if (g) {
+                        g.ids.push(p.id);
+                        g.count += 1;
+                      } else {
+                        groups.set(value, { ids: [p.id], count: 1 });
+                      }
+                    }
+                    return [...groups.entries()].map(([value, g]) => {
+                      const allSelected = g.ids.every((id) => selectedIds.has(id));
+                      const someSelected = !allSelected && g.ids.some((id) => selectedIds.has(id));
+                      return (
+                        <tr key={value}>
+                          <td className="px-3 py-1.5">
+                            <input
+                              type="checkbox"
+                              checked={allSelected}
+                              ref={(el) => {
+                                if (el) el.indeterminate = someSelected;
+                              }}
+                              onChange={() => toggleSelectedGroup(g.ids)}
+                            />
+                          </td>
+                          <td
+                            className={`px-3 py-1.5 text-slate-800 ${
+                              activeFilterColumn === "cost" ||
+                              activeFilterColumn === "price" ||
+                              activeFilterColumn === "stock"
+                                ? "text-right"
+                                : "text-left"
+                            }`}
+                          >
+                            {value || <span className="text-slate-400">—</span>}
+                            {g.count > 1 && <span className="text-slate-400"> ({g.count})</span>}
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()}
                   {filtered.length === 0 && (
                     <tr>
                       <td colSpan={2} className="px-3 py-8 text-center text-slate-400">
