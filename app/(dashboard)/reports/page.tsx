@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getCurrencySymbol } from "@/lib/currency";
 
 function daysAgo(n: number) {
   const d = new Date();
@@ -10,7 +11,7 @@ function daysAgo(n: number) {
 export default async function ReportsPage() {
   const supabase = await createClient();
 
-  const [salesRes, itemsRes, customersRes] = await Promise.all([
+  const [salesRes, itemsRes, customersRes, settingsRes] = await Promise.all([
     supabase
       .from("sales")
       .select("total, created_at, profiles!sales_cashier_id_fkey(full_name)")
@@ -22,8 +23,10 @@ export default async function ReportsPage() {
       .eq("sales.status", "completed")
       .gte("sales.created_at", daysAgo(30)),
     supabase.from("customers").select("name, credit_balance").gt("credit_balance", 0).order("credit_balance", { ascending: false }),
+    supabase.from("shop_settings").select("currency").single(),
   ]);
 
+  const currency = getCurrencySymbol(settingsRes.data?.currency);
   const sales = salesRes.data ?? [];
   const items = (itemsRes.data ?? []) as unknown as {
     qty: number;
@@ -59,15 +62,24 @@ export default async function ReportsPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <div className="text-sm text-slate-500">Revenue</div>
-          <div className="text-2xl font-bold text-slate-900 mt-1">${totalRevenue.toFixed(2)}</div>
+          <div className="text-2xl font-bold text-slate-900 mt-1">
+            {currency}
+            {totalRevenue.toFixed(2)}
+          </div>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <div className="text-sm text-slate-500">Cost of Goods Sold</div>
-          <div className="text-2xl font-bold text-slate-900 mt-1">${totalCost.toFixed(2)}</div>
+          <div className="text-2xl font-bold text-slate-900 mt-1">
+            {currency}
+            {totalCost.toFixed(2)}
+          </div>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <div className="text-sm text-slate-500">Gross Profit</div>
-          <div className="text-2xl font-bold text-green-700 mt-1">${grossProfit.toFixed(2)}</div>
+          <div className="text-2xl font-bold text-green-700 mt-1">
+            {currency}
+            {grossProfit.toFixed(2)}
+          </div>
         </div>
       </div>
 
@@ -80,7 +92,10 @@ export default async function ReportsPage() {
             {[...byStaff.entries()].map(([name, total]) => (
               <li key={name} className="px-5 py-3 flex justify-between text-sm">
                 <span className="text-slate-800">{name}</span>
-                <span className="font-medium">${total.toFixed(2)}</span>
+                <span className="font-medium">
+                  {currency}
+                  {total.toFixed(2)}
+                </span>
               </li>
             ))}
             {byStaff.size === 0 && <li className="px-5 py-4 text-sm text-slate-400">No sales yet.</li>}
@@ -97,7 +112,10 @@ export default async function ReportsPage() {
                 <span className="text-slate-800">
                   {name} <span className="text-slate-400">x{d.qty}</span>
                 </span>
-                <span className="font-medium">${d.revenue.toFixed(2)}</span>
+                <span className="font-medium">
+                  {currency}
+                  {d.revenue.toFixed(2)}
+                </span>
               </li>
             ))}
             {topParts.length === 0 && <li className="px-5 py-4 text-sm text-slate-400">No sales yet.</li>}
@@ -112,7 +130,10 @@ export default async function ReportsPage() {
             {outstandingCredit.map((c) => (
               <li key={c.name} className="px-5 py-3 flex justify-between text-sm">
                 <span className="text-slate-800">{c.name}</span>
-                <span className="font-medium text-red-600">${c.credit_balance.toFixed(2)}</span>
+                <span className="font-medium text-red-600">
+                  {currency}
+                  {c.credit_balance.toFixed(2)}
+                </span>
               </li>
             ))}
             {outstandingCredit.length === 0 && (

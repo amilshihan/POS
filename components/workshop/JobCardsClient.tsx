@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { TITLES, combineTitleName, isValidName, isValidPhone } from "@/lib/validation";
 import { COUNTRY_CODES, DEFAULT_COUNTRY_CODE, combinePhone } from "@/lib/countries";
+import { useCurrencySymbol } from "@/components/providers/CurrencyProvider";
 import { JOB_CARD_PRIORITIES, JOB_CARD_STATUSES, jobCardStatusLabel } from "@/lib/workshop";
 import {
   modalTitle,
@@ -122,6 +123,7 @@ export default function JobCardsClient({
 }) {
   const router = useRouter();
   const supabase = createClient();
+  const currency = useCurrencySymbol();
   const [localCustomers, setLocalCustomers] = useState(customers);
   const [localVehicles, setLocalVehicles] = useState(vehicles);
   const [localBrands, setLocalBrands] = useState(brands);
@@ -415,7 +417,10 @@ export default function JobCardsClient({
                     {j.priority.toUpperCase()}
                   </span>
                 </td>
-                <td className="px-4 py-2 text-right text-ink">LKR {j.total_amount.toFixed(2)}</td>
+                <td className="px-4 py-2 text-right text-ink">
+                  {currency}
+                  {j.total_amount.toFixed(2)}
+                </td>
                 <td className="px-4 py-2 text-right whitespace-nowrap">
                   <button
                     onClick={() => router.push(`/workshop/job-cards/${j.id}`)}

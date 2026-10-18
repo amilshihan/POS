@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useCurrencySymbol } from "@/components/providers/CurrencyProvider";
 
 type Cheque = {
   id: string;
@@ -40,6 +41,7 @@ export default function ChequesClient({
 }) {
   const router = useRouter();
   const supabase = createClient();
+  const currency = useCurrencySymbol();
   const [filter, setFilter] = useState<"all" | "pending" | "cleared" | "bounced">("pending");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
@@ -137,7 +139,10 @@ export default function ChequesClient({
                     {c.customers?.name ?? c.suppliers?.name ?? "-"}
                   </td>
                   <td className="px-4 py-2 text-slate-500">{c.bank_name}</td>
-                  <td className="px-4 py-2 text-right font-medium">${c.amount.toFixed(2)}</td>
+                  <td className="px-4 py-2 text-right font-medium">
+                    {currency}
+                    {c.amount.toFixed(2)}
+                  </td>
                   <td className={`px-4 py-2 ${overdue ? "text-red-600 font-medium" : "text-slate-600"}`}>
                     {c.due_date}
                   </td>

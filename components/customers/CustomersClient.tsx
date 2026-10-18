@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { TITLES, combineTitleName, isValidEmail, isValidName, isValidPhone, splitTitle } from "@/lib/validation";
 import { COUNTRY_CODES, DEFAULT_COUNTRY_CODE, combinePhone, splitPhone } from "@/lib/countries";
+import { useCurrencySymbol } from "@/components/providers/CurrencyProvider";
 import {
   modalTitle,
   fieldLabel,
@@ -271,6 +272,7 @@ const IconPencil = ({ className }: { className?: string }) => (
 export default function CustomersClient({ initialCustomers }: { initialCustomers: Customer[] }) {
   const router = useRouter();
   const supabase = createClient();
+  const currency = useCurrencySymbol();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [page, setPage] = useState(1);
@@ -695,7 +697,7 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
                   {c.credit_period_days} {c.credit_period_days === 1 ? "Day" : "Days"}
                 </td>
                 <td className={`px-4 py-2 text-right font-medium ${c.credit_balance > 0 ? "text-error" : "text-ink"}`}>
-                  ${c.credit_balance.toFixed(2)}
+                  {currency}{c.credit_balance.toFixed(2)}
                 </td>
                 <td className="px-4 py-2">
                   <span
@@ -991,7 +993,7 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
                       <label className={fieldLabel}>Credit limit</label>
                       <div className="flex mt-1 rounded-lg border border-input overflow-hidden focus-within:border-accent focus-within:ring-[3px] focus-within:ring-accent-light">
                         <span className="flex items-center px-3 bg-surface text-sm text-muted border-r border-input">
-                          LKR
+                          {currency}
                         </span>
                         <input
                           type="number"
@@ -1105,7 +1107,7 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
         <div className="fixed inset-0 bg-ink/40 flex items-center justify-center z-20 p-4">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm space-y-3">
             <h2 className="text-lg font-semibold text-ink">Record Payment — {payFor.name}</h2>
-            <p className="text-sm text-muted">Currently owes ${payFor.credit_balance.toFixed(2)}</p>
+            <p className="text-sm text-muted">Currently owes {currency}{payFor.credit_balance.toFixed(2)}</p>
             {error && <div className="rounded-lg bg-error-light text-error text-sm px-3 py-2">{error}</div>}
             <input
               type="number"

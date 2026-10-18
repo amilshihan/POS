@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useCurrencySymbol } from "@/components/providers/CurrencyProvider";
 
 type Supplier = { id: string; name: string };
 type Part = { id: string; name: string; sku: string | null; cost_price: number };
@@ -19,6 +20,7 @@ export default function NewPurchaseClient({
 }) {
   const router = useRouter();
   const supabase = createClient();
+  const currency = useCurrencySymbol();
   const [supplierId, setSupplierId] = useState("");
   const [search, setSearch] = useState("");
   const [lines, setLines] = useState<Line[]>([]);
@@ -132,7 +134,7 @@ export default function NewPurchaseClient({
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-slate-600">
             <tr>
@@ -173,7 +175,8 @@ export default function NewPurchaseClient({
                     />
                   </td>
                   <td className="px-4 py-2 text-right font-medium">
-                    ${(l.qty * l.unitCost).toFixed(2)}
+                    {currency}
+                    {(l.qty * l.unitCost).toFixed(2)}
                   </td>
                   <td className="px-4 py-2 text-right">
                     <button
@@ -191,7 +194,10 @@ export default function NewPurchaseClient({
       </div>
 
       <div className="flex justify-between items-center bg-white rounded-xl border border-slate-200 p-4">
-        <div className="text-lg font-bold text-slate-900">Total: ${total.toFixed(2)}</div>
+        <div className="text-lg font-bold text-slate-900">
+          Total: {currency}
+          {total.toFixed(2)}
+        </div>
         <button
           onClick={handleSave}
           disabled={saving}

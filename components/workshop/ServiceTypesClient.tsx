@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { SERVICE_CATEGORIES, serviceCategoryLabel } from "@/lib/workshop";
+import { useCurrencySymbol } from "@/components/providers/CurrencyProvider";
 import {
   modalTitle,
   fieldLabel,
@@ -66,6 +67,7 @@ function IconTrash({ className }: { className?: string }) {
 export default function ServiceTypesClient({ initialServiceTypes }: { initialServiceTypes: ServiceType[] }) {
   const router = useRouter();
   const supabase = createClient();
+  const currency = useCurrencySymbol();
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -177,7 +179,10 @@ export default function ServiceTypesClient({ initialServiceTypes }: { initialSer
                 <td className="px-4 py-2 text-ink font-medium">{s.name}</td>
                 <td className="px-4 py-2 text-muted">{serviceCategoryLabel(s.category)}</td>
                 <td className="px-4 py-2 text-muted">{s.estimated_time_mins ? `${s.estimated_time_mins} mins` : "—"}</td>
-                <td className="px-4 py-2 text-right text-ink">LKR {s.default_labor_charge.toFixed(2)}</td>
+                <td className="px-4 py-2 text-right text-ink">
+                  {currency}
+                  {s.default_labor_charge.toFixed(2)}
+                </td>
                 <td className="px-4 py-2">
                   <span
                     className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${

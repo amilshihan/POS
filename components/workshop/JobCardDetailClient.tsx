@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { jobCardStatusLabel } from "@/lib/workshop";
+import { useCurrencySymbol } from "@/components/providers/CurrencyProvider";
 import {
   modalTitle,
   fieldLabel,
@@ -155,6 +156,7 @@ export default function JobCardDetailClient({
 }) {
   const router = useRouter();
   const supabase = createClient();
+  const currency = useCurrencySymbol();
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -465,15 +467,15 @@ export default function JobCardDetailClient({
           <div className="grid grid-cols-3 gap-4 text-sm">
             <div>
               <dt className={helperText}>Total Labor Cost</dt>
-              <dd className="text-ink font-semibold">LKR {jobCard.total_labor_cost.toFixed(2)}</dd>
+              <dd className="text-ink font-semibold">{currency}{jobCard.total_labor_cost.toFixed(2)}</dd>
             </div>
             <div>
               <dt className={helperText}>Total Parts Cost</dt>
-              <dd className="text-ink font-semibold">LKR {jobCard.total_parts_cost.toFixed(2)}</dd>
+              <dd className="text-ink font-semibold">{currency}{jobCard.total_parts_cost.toFixed(2)}</dd>
             </div>
             <div>
               <dt className={helperText}>Total Amount</dt>
-              <dd className="text-accent font-bold">LKR {jobCard.total_amount.toFixed(2)}</dd>
+              <dd className="text-accent font-bold">{currency}{jobCard.total_amount.toFixed(2)}</dd>
             </div>
           </div>
         </div>
@@ -547,7 +549,7 @@ export default function JobCardDetailClient({
                   <td className="px-3 py-2 text-ink">{s.service_types?.name ?? s.custom_service_name}</td>
                   <td className="px-3 py-2 text-muted">{s.performed_by_profile?.full_name ?? "Unassigned"}</td>
                   <td className="px-3 py-2 text-muted capitalize">{s.status}</td>
-                  <td className="px-3 py-2 text-right text-ink">LKR {s.labor_charge.toFixed(2)}</td>
+                  <td className="px-3 py-2 text-right text-ink">{currency}{s.labor_charge.toFixed(2)}</td>
                   <td className="px-3 py-2 text-right print:hidden">
                     <button onClick={() => handleDeleteService(s)} title="Remove" aria-label="Remove" className="text-error hover:underline text-xs">
                       Remove
@@ -595,8 +597,8 @@ export default function JobCardDetailClient({
                   <td className="px-3 py-2 text-muted font-mono text-xs">{p.parts?.sku ?? "—"}</td>
                   <td className="px-3 py-2 text-ink">{p.parts?.name}</td>
                   <td className="px-3 py-2 text-right text-ink">{p.qty}</td>
-                  <td className="px-3 py-2 text-right text-ink">LKR {p.unit_price.toFixed(2)}</td>
-                  <td className="px-3 py-2 text-right text-ink">LKR {p.line_total.toFixed(2)}</td>
+                  <td className="px-3 py-2 text-right text-ink">{currency}{p.unit_price.toFixed(2)}</td>
+                  <td className="px-3 py-2 text-right text-ink">{currency}{p.line_total.toFixed(2)}</td>
                   <td className="px-3 py-2 text-right print:hidden">
                     <div className="flex items-center justify-end gap-2">
                       <button onClick={() => openEditPart(p)} title="Edit" aria-label="Edit" className={iconActionBtn}>
@@ -897,7 +899,7 @@ export default function JobCardDetailClient({
                 {(() => {
                   const selected = products.find((pr) => pr.id === partProductId);
                   return selected ? (
-                    <p className={`${helperText} mt-1`}>Retail price: LKR {selected.retail_price.toFixed(2)}</p>
+                    <p className={`${helperText} mt-1`}>Retail price: {currency}{selected.retail_price.toFixed(2)}</p>
                   ) : null;
                 })()}
               </div>
@@ -954,7 +956,7 @@ export default function JobCardDetailClient({
                   className={`${inputBase} mt-1`}
                 />
                 {editingProduct && (
-                  <p className={`${helperText} mt-1`}>Retail price: LKR {editingProduct.retail_price.toFixed(2)}</p>
+                  <p className={`${helperText} mt-1`}>Retail price: {currency}{editingProduct.retail_price.toFixed(2)}</p>
                 )}
               </div>
             </div>
@@ -986,7 +988,7 @@ export default function JobCardDetailClient({
               {services.map((s) => (
                 <div key={s.id} className="flex justify-between">
                   <span className="text-ink">{s.service_types?.name ?? s.custom_service_name}</span>
-                  <span className="text-ink">LKR {s.labor_charge.toFixed(2)}</span>
+                  <span className="text-ink">{currency}{s.labor_charge.toFixed(2)}</span>
                 </div>
               ))}
               {parts.map((p) => (
@@ -994,7 +996,7 @@ export default function JobCardDetailClient({
                   <span className="text-ink">
                     {p.parts?.name} × {p.qty}
                   </span>
-                  <span className="text-ink">LKR {p.line_total.toFixed(2)}</span>
+                  <span className="text-ink">{currency}{p.line_total.toFixed(2)}</span>
                 </div>
               ))}
               {services.length === 0 && parts.length === 0 && <p className="text-muted">No services or parts added yet.</p>}
@@ -1002,7 +1004,7 @@ export default function JobCardDetailClient({
             <hr className="border-card" />
             <div className="flex justify-between text-base font-bold">
               <span className="text-ink">Estimated Total</span>
-              <span className="text-accent">LKR {jobCard.total_amount.toFixed(2)}</span>
+              <span className="text-accent">{currency}{jobCard.total_amount.toFixed(2)}</span>
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => setShowQuote(false)} className={btnSecondary}>
