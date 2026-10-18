@@ -30,7 +30,7 @@ export async function POST() {
       execFile(
         "powershell.exe",
         ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath, "-PrinterName", printerName],
-        { timeout: 10_000 },
+        { timeout: 15_000 },
         (err, stdout, stderr) => {
           if (err || !stdout.includes("OK")) {
             reject(new Error(stderr.trim() || stdout.trim() || err?.message || "Unknown printer error."));

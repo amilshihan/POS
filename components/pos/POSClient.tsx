@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { TITLES, combineTitleName, isValidName, isValidPhone } from "@/lib/validation";
 import { COUNTRY_CODES, DEFAULT_COUNTRY_CODE, combinePhone } from "@/lib/countries";
+import { useCurrencySymbol } from "@/components/providers/CurrencyProvider";
+import SearchablePicker, { PickerOption } from "@/components/ui/SearchablePicker";
 
 type PartRow = {
   id: string;
@@ -12,10 +14,28 @@ type PartRow = {
   barcode: string | null;
   name: string;
   cost_price?: number;
+  min_price?: number;
   sell_price: number;
   qty_on_hand: number;
   unit: string;
+  is_drum?: boolean;
+  pack_size?: string | null;
+  drum_measurement?: string | null;
+  open_qty_remaining?: number;
 };
+
+type DrumTier = { id: string; label: string; quantity: number; sell_price: number };
+type DrumPriceRow = DrumTier & { part_id: string };
+
+function partMinPrice(part: PartRow): number | null {
+  if (typeof part.cost_price === "number") {
+    return Math.round(part.cost_price * 1.03 * 100) / 100;
+  }
+  if (typeof part.min_price === "number") {
+    return part.min_price;
+  }
+  return null;
+}
 
 type CustomerRow = {
   id: string;
@@ -23,9 +43,29 @@ type CustomerRow = {
   name: string;
   phone: string | null;
   credit_balance: number;
+  credit_limit: number;
 };
 
-type CartLine = { part: PartRow; qty: number; discount: number; packageId?: string };
+type CartLine = { part: PartRow; qty: number; discount: number; packageId?: string; drumTier?: DrumTier };
+
+function lineKey(l: CartLine): string {
+  return l.drumTier ? `${l.part.id}:${l.drumTier.id}` : l.part.id;
+}
+
+function lineBasePrice(l: CartLine): number {
+  return l.drumTier ? l.drumTier.sell_price : l.part.sell_price;
+}
+
+function lineMinPrice(l: CartLine): number | null {
+  const base = partMinPrice(l.part);
+  if (base === null) return null;
+  if (l.drumTier) {
+    const packSize = Number(l.part.pack_size) || 0;
+    if (packSize <= 0) return null;
+    return (base / packSize) * l.drumTier.quantity;
+  }
+  return base;
+}
 
 type PaymentMethod = "cash" | "credit" | "cheque" | "mixed";
 
@@ -34,16 +74,41 @@ export default function POSClient({
   customers,
   cashierId,
   admin,
+  drumRetailPrices,
 }: {
   initialParts: PartRow[];
   customers: CustomerRow[];
   cashierId: string;
   admin: boolean;
+  drumRetailPrices: DrumPriceRow[];
 }) {
   const router = useRouter();
   const supabase = createClient();
+  const currency = useCurrencySymbol();
+
+  const drumTiersByPartId = useMemo(() => {
+    const map = new Map<string, DrumTier[]>();
+    for (const t of drumRetailPrices) {
+      const arr = map.get(t.part_id) ?? [];
+      arr.push({ id: t.id, label: t.label, quantity: Number(t.quantity), sell_price: Number(t.sell_price) });
+      map.set(t.part_id, arr);
+    }
+    return map;
+  }, [drumRetailPrices]);
+
+  const customerOptions: PickerOption[] = useMemo(
+    () =>
+      customers.map((c) => ({
+        id: c.id,
+        label: `${c.customer_code} — ${c.name}`,
+        sublabel: c.phone ?? undefined,
+        meta: c.credit_balance > 0 ? `owes ${currency}${c.credit_balance.toFixed(2)}` : undefined,
+      })),
+    [customers, currency]
+  );
 
   const [cart, setCart] = useState<CartLine[]>([]);
+  const [drumPickerPart, setDrumPickerPart] = useState<PartRow | null>(null);
   const [search, setSearch] = useState("");
   const [scanBuffer, setScanBuffer] = useState("");
   const [customerId, setCustomerId] = useState<string>("");
@@ -59,6 +124,7 @@ export default function POSClient({
   const [bankName, setBankName] = useState("");
   const [chequeDueDate, setChequeDueDate] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [lineErrors, setLineErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [openingDrawer, setOpeningDrawer] = useState(false);
@@ -91,15 +157,15 @@ export default function POSClient({
       const lineShare = (packageTotal * lineNormalTotal) / groupNormalTotal;
       return lineShare / l.qty;
     }
-    return Math.max(0, l.part.sell_price - l.discount);
+    return Math.max(0, lineBasePrice(l) - l.discount);
   }
 
   const subtotal = useMemo(
-    () => cart.reduce((sum, l) => sum + l.qty * l.part.sell_price, 0),
+    () => cart.reduce((sum, l) => sum + l.qty * lineBasePrice(l), 0),
     [cart]
   );
   const itemDiscountsTotal = useMemo(
-    () => cart.reduce((sum, l) => sum + (l.qty * l.part.sell_price - l.qty * lineEffectiveUnitPrice(l)), 0),
+    () => cart.reduce((sum, l) => sum + (l.qty * lineBasePrice(l) - l.qty * lineEffectiveUnitPrice(l)), 0),
     [cart, packagePrices]
   );
   const total = Math.max(0, subtotal - itemDiscountsTotal - discount);
@@ -128,42 +194,80 @@ export default function POSClient({
   }, [search, initialParts]);
 
   function addPart(part: PartRow) {
+    const tiers = part.is_drum ? drumTiersByPartId.get(part.id) : undefined;
+    if (tiers && tiers.length > 0) {
+      setDrumPickerPart(part);
+      setSearch("");
+      return;
+    }
+    addWholePart(part);
+  }
+
+  function addWholePart(part: PartRow) {
     setCart((prev) => {
-      const existing = prev.find((l) => l.part.id === part.id);
+      const existing = prev.find((l) => l.part.id === part.id && !l.drumTier);
       if (existing) {
-        return prev.map((l) => (l.part.id === part.id ? { ...l, qty: l.qty + 1 } : l));
+        return prev.map((l) => (l === existing ? { ...l, qty: l.qty + 1 } : l));
       }
       return [...prev, { part, qty: 1, discount: 0 }];
     });
     setSearch("");
   }
 
-  function updateQty(partId: string, qty: number) {
+  function addDrumTier(part: PartRow, tier: DrumTier) {
+    setCart((prev) => {
+      const existing = prev.find((l) => l.part.id === part.id && l.drumTier?.id === tier.id);
+      if (existing) {
+        return prev.map((l) => (l === existing ? { ...l, qty: l.qty + 1 } : l));
+      }
+      return [...prev, { part, qty: 1, discount: 0, drumTier: tier }];
+    });
+    setDrumPickerPart(null);
+    setSearch("");
+  }
+
+  function updateQty(key: string, qty: number) {
     setCart((prev) =>
       prev
-        .map((l) => (l.part.id === partId ? { ...l, qty: Math.max(0, qty) } : l))
+        .map((l) => (lineKey(l) === key ? { ...l, qty: Math.max(0, qty) } : l))
         .filter((l) => l.qty > 0)
     );
   }
 
-  function updateLineDiscount(partId: string, discount: number) {
+  function updateLinePrice(key: string, price: number) {
+    const safePrice = Math.max(0, price);
+    const line = cart.find((l) => lineKey(l) === key);
     setCart((prev) =>
-      prev.map((l) =>
-        l.part.id === partId ? { ...l, discount: Math.min(Math.max(0, discount), l.part.sell_price) } : l
-      )
+      prev.map((l) => (lineKey(l) === key ? { ...l, discount: lineBasePrice(l) - safePrice } : l))
     );
+    const minPrice = line ? lineMinPrice(line) : null;
+    setLineErrors((prev) => {
+      const next = { ...prev };
+      if (minPrice !== null && safePrice < minPrice - 0.01) {
+        next[key] = `Minimum allowed price is ${minPrice.toFixed(2)}`;
+      } else {
+        delete next[key];
+      }
+      return next;
+    });
   }
 
-  function removeLine(partId: string) {
+  function removeLine(key: string) {
     setCart((prev) => {
-      const removed = prev.find((l) => l.part.id === partId);
-      const next = prev.filter((l) => l.part.id !== partId);
+      const removed = prev.find((l) => lineKey(l) === key);
+      const next = prev.filter((l) => lineKey(l) !== key);
       if (removed?.packageId) {
         const remaining = next.filter((l) => l.packageId === removed.packageId);
         if (remaining.length < 2) {
           return next.map((l) => (l.packageId === removed.packageId ? { ...l, packageId: undefined } : l));
         }
       }
+      return next;
+    });
+    setLineErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
       return next;
     });
   }
@@ -174,17 +278,17 @@ export default function POSClient({
     setShowPackageModal(true);
   }
 
-  function togglePackageSelection(partId: string) {
+  function togglePackageSelection(key: string) {
     setPackageSelection((prev) => {
       const next = new Set(prev);
-      next.has(partId) ? next.delete(partId) : next.add(partId);
+      next.has(key) ? next.delete(key) : next.add(key);
       return next;
     });
   }
 
-  const packageableLines = cart.filter((l) => !l.packageId);
+  const packageableLines = cart.filter((l) => !l.packageId && !l.drumTier);
   const packageSelectionNormalTotal = cart
-    .filter((l) => packageSelection.has(l.part.id))
+    .filter((l) => packageSelection.has(lineKey(l)))
     .reduce((sum, l) => sum + l.qty * l.part.sell_price, 0);
 
   function handleCreatePackage() {
@@ -199,7 +303,7 @@ export default function POSClient({
     }
     const packageId = crypto.randomUUID();
     setCart((prev) =>
-      prev.map((l) => (packageSelection.has(l.part.id) ? { ...l, packageId, discount: 0 } : l))
+      prev.map((l) => (packageSelection.has(lineKey(l)) ? { ...l, packageId, discount: 0 } : l))
     );
     setPackagePrices((prev) => ({ ...prev, [packageId]: price }));
     setShowPackageModal(false);
@@ -232,6 +336,11 @@ export default function POSClient({
   async function handleCheckout() {
     setError(null);
 
+    if (Object.keys(lineErrors).length > 0) {
+      setError("Fix the price shown in red before completing the sale.");
+      return;
+    }
+
     if (cart.length === 0) {
       setError("Add at least one part to the cart.");
       return;
@@ -253,6 +362,19 @@ export default function POSClient({
     if ((paymentMethod === "credit" || paymentMethod === "mixed") && !hasCustomer) {
       setError("Select or enter a customer for credit or mixed payment.");
       return;
+    }
+    if (paymentMethod === "credit" || paymentMethod === "mixed") {
+      if (newCustomerMode) {
+        setError(
+          "New customers don't have a credit limit set yet. Save this customer first, set a credit limit for them on the Customers page, then come back to sell on credit."
+        );
+        return;
+      }
+      const selectedCustomer = customers.find((c) => c.id === customerId);
+      if (!selectedCustomer || !(selectedCustomer.credit_limit > 0)) {
+        setError("This customer has no credit limit set. Set a credit limit for them on the Customers page before selling on credit.");
+        return;
+      }
     }
     if (paymentMethod === "cheque" && (!chequeNumber || !chequeDueDate)) {
       setError("Enter the cheque number and due date.");
@@ -305,13 +427,14 @@ export default function POSClient({
       if (ungroupedLines.length > 0) {
         const { error: itemsError } = await supabase.from("sale_items").insert(
           ungroupedLines.map((l) => {
-            const unitPrice = Math.max(0, l.part.sell_price - l.discount);
+            const unitPrice = lineEffectiveUnitPrice(l);
             return {
               sale_id: sale.id,
               part_id: l.part.id,
               qty: l.qty,
               unit_price: unitPrice,
               line_total: l.qty * unitPrice,
+              drum_draw_qty: l.drumTier ? l.drumTier.quantity * l.qty : null,
             };
           })
         );
@@ -353,7 +476,25 @@ export default function POSClient({
       }
       const message =
         err instanceof Error ? err.message : (err as { message?: string } | null)?.message ?? null;
-      setError(message ?? "Checkout failed. Please try again.");
+      const details = (err as { details?: string } | null)?.details;
+      let handledAsLineError = false;
+      if (details) {
+        try {
+          const parsed = JSON.parse(details) as { part_id?: string };
+          if (parsed.part_id) {
+            const matches = cart.filter((l) => l.part.id === parsed.part_id);
+            if (matches.length === 1) {
+              setLineErrors({ [lineKey(matches[0])]: message ?? "Price is below the minimum allowed price." });
+              handledAsLineError = true;
+            }
+          }
+        } catch {
+          // not a structured error, fall through to the general message
+        }
+      }
+      if (!handledAsLineError) {
+        setError(message ?? "Checkout failed. Please try again.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -431,7 +572,8 @@ export default function POSClient({
                       {p.name} {p.sku && <span className="text-slate-400">({p.sku})</span>}
                     </span>
                     <span className="text-slate-500">
-                      {admin && <>Cost ${(p.cost_price ?? 0).toFixed(2)} · </>}${p.sell_price.toFixed(2)} ·{" "}
+                      {admin && <>Cost {currency}{(p.cost_price ?? 0).toFixed(2)} · </>}{currency}
+                      {p.sell_price.toFixed(2)} ·{" "}
                       {p.qty_on_hand} in stock
                     </span>
                   </button>
@@ -441,15 +583,13 @@ export default function POSClient({
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-slate-600">
               <tr>
                 <th className="text-left px-4 py-2 font-medium">Part</th>
-                {admin && <th className="text-right px-4 py-2 font-medium">Cost</th>}
                 <th className="text-right px-4 py-2 font-medium">Price</th>
                 <th className="text-center px-4 py-2 font-medium">Qty</th>
-                <th className="text-right px-4 py-2 font-medium">Discount</th>
                 <th className="text-right px-4 py-2 font-medium">Line Total</th>
                 <th className="px-4 py-2"></th>
               </tr>
@@ -457,57 +597,85 @@ export default function POSClient({
             <tbody className="divide-y divide-slate-100">
               {cart.length === 0 ? (
                 <tr>
-                  <td colSpan={admin ? 7 : 6} className="px-4 py-8 text-center text-slate-400">
+                  <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
                     Cart is empty — scan or search for a part above.
                   </td>
                 </tr>
               ) : (
                 cart.map((l) => {
                   const unitPrice = lineEffectiveUnitPrice(l);
+                  const key = lineKey(l);
+                  const basePrice = lineBasePrice(l);
                   return (
-                    <tr key={l.part.id} className={l.packageId ? "bg-amber-50" : undefined}>
+                    <tr key={key} className={l.packageId ? "bg-amber-50" : l.drumTier ? "bg-sky-50" : undefined}>
                       <td className="px-4 py-2 text-slate-800">
-                        {l.part.name}
+                        <span
+                          title={
+                            admin
+                              ? l.drumTier
+                                ? lineMinPrice(l) !== null
+                                  ? `Cost + 3% profit for ${l.drumTier.label}: ${currency}${lineMinPrice(l)!.toFixed(2)}`
+                                  : undefined
+                                : `Cost: ${currency}${(l.part.cost_price ?? 0).toFixed(2)}`
+                              : undefined
+                          }
+                        >
+                          {l.part.name}
+                        </span>
+                        {l.drumTier && (
+                          <span className="ml-2 inline-flex items-center rounded-full bg-sky-200 text-sky-900 text-[10px] font-semibold px-1.5 py-0.5 align-middle">
+                            🛢️ {l.drumTier.label}
+                          </span>
+                        )}
                         {l.packageId && (
                           <span className="ml-2 inline-flex items-center rounded-full bg-amber-200 text-amber-900 text-[10px] font-semibold px-1.5 py-0.5 align-middle">
                             📦 Package
                           </span>
                         )}
                       </td>
-                      {admin && (
-                        <td className="px-4 py-2 text-right text-slate-500">
-                          ${(l.part.cost_price ?? 0).toFixed(2)}
-                        </td>
-                      )}
-                      <td className="px-4 py-2 text-right text-slate-600">
-                        ${l.part.sell_price.toFixed(2)}
+                      <td className="px-4 py-2 text-right">
+                        {l.packageId ? (
+                          <span className="text-xs text-amber-700">pkg price</span>
+                        ) : (
+                          <>
+                            <input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              value={unitPrice}
+                              onChange={(e) => updateLinePrice(key, Number(e.target.value))}
+                              title="Unit price (editable)"
+                              className={`w-24 text-right rounded border py-1 px-1 ${
+                                lineErrors[key] ? "border-red-400" : "border-slate-300"
+                              }`}
+                            />
+                            {lineErrors[key] ? (
+                              <div className="text-[11px] text-red-600 mt-0.5 max-w-[11rem] text-right ml-auto">
+                                {lineErrors[key]}
+                              </div>
+                            ) : (
+                              Math.abs(unitPrice - basePrice) > 0.004 && (
+                                <div className="text-[11px] text-slate-400 mt-0.5">
+                                  normal {currency}
+                                  {basePrice.toFixed(2)}
+                                </div>
+                              )
+                            )}
+                          </>
+                        )}
                       </td>
                       <td className="px-4 py-2 text-center">
                         <input
                           type="number"
                           min={1}
                           value={l.qty}
-                          onChange={(e) => updateQty(l.part.id, Number(e.target.value))}
+                          onChange={(e) => updateQty(key, Number(e.target.value))}
                           className="w-16 text-center rounded border border-slate-300 py-1"
                         />
                       </td>
-                      <td className="px-4 py-2 text-right">
-                        {l.packageId ? (
-                          <span className="text-xs text-amber-700">pkg price</span>
-                        ) : (
-                          <input
-                            type="number"
-                            min={0}
-                            max={l.part.sell_price}
-                            value={l.discount}
-                            onChange={(e) => updateLineDiscount(l.part.id, Number(e.target.value))}
-                            title="Discount per unit"
-                            className="w-20 text-right rounded border border-slate-300 py-1 px-1"
-                          />
-                        )}
-                      </td>
                       <td className="px-4 py-2 text-right font-medium text-slate-900">
-                        ${(l.qty * unitPrice).toFixed(2)}
+                        {currency}
+                        {(l.qty * unitPrice).toFixed(2)}
                       </td>
                       <td className="px-4 py-2 text-right whitespace-nowrap">
                         {l.packageId && (
@@ -519,7 +687,7 @@ export default function POSClient({
                           </button>
                         )}
                         <button
-                          onClick={() => removeLine(l.part.id)}
+                          onClick={() => removeLine(key)}
                           className="text-red-500 hover:text-red-700 text-xs font-medium"
                         >
                           Remove
@@ -599,19 +767,14 @@ export default function POSClient({
                 </div>
               </div>
             ) : (
-              <select
+              <SearchablePicker
+                options={customerOptions}
                 value={customerId}
-                onChange={(e) => setCustomerId(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2"
-              >
-                <option value="">Walk-in customer</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.customer_code} — {c.name}{" "}
-                    {c.credit_balance > 0 ? `(owes $${c.credit_balance.toFixed(2)})` : ""}
-                  </option>
-                ))}
-              </select>
+                onChange={setCustomerId}
+                placeholder="Search by name or mobile no..."
+                emptyLabel="Walk-in customer"
+                emptyValueLabel="Walk-in customer"
+              />
             )}
           </div>
 
@@ -655,8 +818,9 @@ export default function POSClient({
                 className="w-full rounded-lg border border-slate-300 px-3 py-2"
               />
               <p className="text-xs text-slate-400 mt-1">
-                Remaining ${Math.max(0, total - Number(amountPaid || 0)).toFixed(2)} will be added
-                to the customer&apos;s balance.
+                Remaining {currency}
+                {Math.max(0, total - Number(amountPaid || 0)).toFixed(2)} will be added to the
+                customer&apos;s balance.
               </p>
             </div>
           )}
@@ -696,21 +860,21 @@ export default function POSClient({
           <div className="pt-2 border-t border-slate-200 space-y-1">
             <div className="flex justify-between text-sm text-slate-600">
               <span>Subtotal</span>
-              <span>${subtotal.toFixed(2)}</span>
+              <span>{currency}{subtotal.toFixed(2)}</span>
             </div>
             {itemDiscountsTotal > 0 && (
               <div className="flex justify-between text-sm text-slate-600">
                 <span>Item Discounts</span>
-                <span>-${itemDiscountsTotal.toFixed(2)}</span>
+                <span>-{currency}{itemDiscountsTotal.toFixed(2)}</span>
               </div>
             )}
             <div className="flex justify-between text-sm text-slate-600">
               <span>Discount</span>
-              <span>-${discount.toFixed(2)}</span>
+              <span>-{currency}{discount.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-lg font-bold text-slate-900">
               <span>Total</span>
-              <span>${total.toFixed(2)}</span>
+              <span>{currency}{total.toFixed(2)}</span>
             </div>
           </div>
 
@@ -745,18 +909,21 @@ export default function POSClient({
           <div className="max-h-56 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
             {packageableLines.map((l) => (
               <label
-                key={l.part.id}
+                key={lineKey(l)}
                 className="flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-slate-50"
               >
                 <span className="flex items-center gap-2">
                   <input
                     type="checkbox"
-                    checked={packageSelection.has(l.part.id)}
-                    onChange={() => togglePackageSelection(l.part.id)}
+                    checked={packageSelection.has(lineKey(l))}
+                    onChange={() => togglePackageSelection(lineKey(l))}
                   />
                   {l.part.name} × {l.qty}
                 </span>
-                <span className="text-slate-500">${(l.qty * l.part.sell_price).toFixed(2)}</span>
+                <span className="text-slate-500">
+                  {currency}
+                  {(l.qty * l.part.sell_price).toFixed(2)}
+                </span>
               </label>
             ))}
             {packageableLines.length === 0 && (
@@ -768,7 +935,8 @@ export default function POSClient({
 
           {packageSelection.size > 0 && (
             <p className="text-sm text-slate-500">
-              Normal total for selected items: ${packageSelectionNormalTotal.toFixed(2)}
+              Normal total for selected items: {currency}
+              {packageSelectionNormalTotal.toFixed(2)}
             </p>
           )}
 
@@ -800,6 +968,60 @@ export default function POSClient({
               className="px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700"
             >
               Create Package
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {drumPickerPart && (
+      <div
+        className="fixed inset-0 bg-black/40 flex items-center justify-center z-40 p-4"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) setDrumPickerPart(null);
+        }}
+      >
+        <div className="bg-white rounded-xl p-6 w-full max-w-sm space-y-4">
+          <div>
+            <h2 className="font-semibold text-lg text-slate-900">{drumPickerPart.name}</h2>
+            <p className="text-sm text-slate-500">Choose a size to sell from this drum.</p>
+          </div>
+
+          <div className="space-y-2">
+            {(drumTiersByPartId.get(drumPickerPart.id) ?? []).map((tier) => (
+              <button
+                key={tier.id}
+                onClick={() => addDrumTier(drumPickerPart, tier)}
+                className="w-full flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2.5 text-sm hover:bg-sky-50 hover:border-sky-300 transition"
+              >
+                <span className="font-medium text-slate-800">{tier.label}</span>
+                <span className="text-slate-600">
+                  {currency}
+                  {tier.sell_price.toFixed(2)}
+                </span>
+              </button>
+            ))}
+            <button
+              onClick={() => {
+                addWholePart(drumPickerPart);
+                setDrumPickerPart(null);
+              }}
+              className="w-full flex items-center justify-between rounded-lg border border-dashed border-slate-300 px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition"
+            >
+              <span>Whole drum</span>
+              <span>
+                {currency}
+                {drumPickerPart.sell_price.toFixed(2)}
+              </span>
+            </button>
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              onClick={() => setDrumPickerPart(null)}
+              className="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 text-sm"
+            >
+              Cancel
             </button>
           </div>
         </div>

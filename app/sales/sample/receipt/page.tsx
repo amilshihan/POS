@@ -33,6 +33,9 @@ export default async function SampleReceiptPage({
     phone: null,
     receipt_width_mm: 80,
     receipt_footer: "Thank you!",
+    logo_url: null,
+    logo_print_enabled: true,
+    currency: "LKR",
   };
 
   return (

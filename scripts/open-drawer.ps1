@@ -80,8 +80,36 @@ function Send-RawBytesToPrinter {
   }
 }
 
+function Wait-ForPrinterQueueEmpty {
+  # The receipt itself was just sent to this same printer via the browser's
+  # print dialog. If our raw drawer-kick job reaches the printer while that
+  # job is still spooling/printing, the two jobs can collide on the printer
+  # and the receipt comes out blank (or not at all). Wait for the OS queue
+  # for this printer to drain before sending the raw job, instead of racing
+  # a fixed delay.
+  param([string]$PrinterName, [int]$TimeoutSeconds = 8)
+  # The browser's print job may not have reached the spooler queue yet at
+  # the instant we're invoked — check too early and we'd see an empty queue
+  # and fire immediately, defeating the point. Give it a moment to show up.
+  Start-Sleep -Milliseconds 400
+  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+  while ((Get-Date) -lt $deadline) {
+    try {
+      $jobs = Get-PrintJob -PrinterName $PrinterName -ErrorAction Stop
+    } catch {
+      # Get-PrintJob unavailable/unsupported for this printer — don't block forever.
+      return
+    }
+    if (-not $jobs -or @($jobs).Count -eq 0) {
+      return
+    }
+    Start-Sleep -Milliseconds 200
+  }
+}
+
 # ESC p 0 25 250 — standard ESC/POS drawer-kick command.
 $kick = [byte[]](0x1B, 0x70, 0x00, 0x19, 0xFA)
 
+Wait-ForPrinterQueueEmpty -PrinterName $PrinterName
 Send-RawBytesToPrinter -PrinterName $PrinterName -Bytes $kick
 Write-Output "OK"

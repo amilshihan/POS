@@ -39,6 +39,9 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
     receipt_width_mm: 80,
     receipt_footer: "Thank you!",
     auto_open_drawer_on_print: false,
+    logo_url: null,
+    logo_print_enabled: true,
+    currency: "LKR",
   };
 
   return (
