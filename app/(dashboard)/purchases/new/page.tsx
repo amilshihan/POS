@@ -7,8 +7,8 @@ export default async function NewPurchasePage() {
   const { profile } = await getCurrentUserAndProfile();
 
   const [suppliersRes, partsRes] = await Promise.all([
-    supabase.from("suppliers").select("id, name").order("name"),
-    supabase.from("parts").select("id, name, sku, cost_price").order("name"),
+    supabase.from("suppliers").select("id, name, phone, address").order("name"),
+    supabase.from("parts").select("id, name, sku, cost_price, retail_price, supplier_id").order("name"),
   ]);
 
   return (

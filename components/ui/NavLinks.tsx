@@ -21,6 +21,7 @@ const WORKSHOP_LINKS = [
 
 const ADMIN_LINKS = [
   { href: "/suppliers", label: "Suppliers" },
+  { href: "/purchases", label: "Purchases" },
   { href: "/purchases/new", label: "New Purchase" },
   { href: "/reports", label: "Reports" },
   { href: "/users", label: "Staff" },
