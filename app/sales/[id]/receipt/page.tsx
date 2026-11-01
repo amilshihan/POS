@@ -11,7 +11,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
     supabase
       .from("sales")
       .select(
-        "*, customers(name, phone), profiles!sales_cashier_id_fkey(full_name), sale_items(qty, unit_price, line_total, parts(name, unit))"
+        "*, customers(name, phone), profiles!sales_cashier_id_fkey(full_name), sale_items(qty, unit_price, line_total, parts(name, unit, has_warranty, warranty_months))"
       )
       .eq("id", id)
       .single(),
@@ -30,7 +30,12 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
     payment_method: string;
     customers: { name: string; phone: string | null } | null;
     profiles: { full_name: string } | null;
-    sale_items: { qty: number; unit_price: number; line_total: number; parts: { name: string; unit: string } }[];
+    sale_items: {
+      qty: number;
+      unit_price: number;
+      line_total: number;
+      parts: { name: string; unit: string; has_warranty: boolean; warranty_months: number | null };
+    }[];
   };
   const settings = settingsRes.data ?? {
     shop_name: "Spare Parts Shop",

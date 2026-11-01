@@ -147,6 +147,8 @@ type Part = {
   pack_size: string | null;
   drum_measurement: string | null;
   open_qty_remaining?: number;
+  has_warranty?: boolean;
+  warranty_months?: number | null;
   supplier_id?: string | null;
   qty_on_hand: number;
   reorder_point?: number | null;
@@ -258,6 +260,8 @@ const emptyForm = {
   drum_measurement: "",
   open_qty_remaining: "0",
   retailTiers: [] as { id?: string; label: string; quantity: string; sell_price: string }[],
+  has_warranty: false,
+  warranty_months: "",
   is_active: true,
   qty_on_hand: "0",
   supplier_id: "",
@@ -562,6 +566,8 @@ export default function InventoryClient({
         .filter((t) => t.part_id === p.id)
         .sort((a, b) => a.sort_order - b.sort_order)
         .map((t) => ({ id: t.id, label: t.label, quantity: String(t.quantity), sell_price: String(t.sell_price) })),
+      has_warranty: p.has_warranty ?? false,
+      warranty_months: p.warranty_months === null || p.warranty_months === undefined ? "" : String(p.warranty_months),
       is_active: p.is_active,
       qty_on_hand: String(p.qty_on_hand),
       supplier_id: p.supplier_id ?? "",
@@ -679,6 +685,14 @@ export default function InventoryClient({
       }
     }
 
+    if (form.has_warranty) {
+      const months = Number(form.warranty_months);
+      if (!months || months <= 0) {
+        setError("Enter how many months the warranty covers.");
+        return;
+      }
+    }
+
     const trimmedSku = form.sku.trim();
     let skuToUse: string | null = trimmedSku || null;
 
@@ -723,6 +737,8 @@ export default function InventoryClient({
       pack_size: form.is_drum ? form.pack_size.trim() || null : null,
       drum_measurement: form.is_drum ? form.drum_measurement || null : null,
       open_qty_remaining: form.is_drum ? Number(form.open_qty_remaining) || 0 : 0,
+      has_warranty: form.has_warranty,
+      warranty_months: form.has_warranty ? Number(form.warranty_months) || null : null,
       is_active: form.is_active,
       qty_on_hand: Number(form.qty_on_hand),
       supplier_id: form.supplier_id || null,
@@ -1575,7 +1591,30 @@ export default function InventoryClient({
                   />
                   Drum / Bucket
                 </label>
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={form.has_warranty}
+                    onChange={(e) => setForm({ ...form, has_warranty: e.target.checked })}
+                  />
+                  Has Warranty
+                </label>
               </div>
+              {form.has_warranty && (
+                <div className="mt-2 max-w-[10rem]">
+                  <label className="text-xs text-slate-500">
+                    Warranty (months) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={form.warranty_months}
+                    onChange={(e) => setForm({ ...form, warranty_months: e.target.value })}
+                    placeholder="e.g. 6"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Stock */}

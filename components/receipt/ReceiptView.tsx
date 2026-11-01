@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { getCurrencySymbol } from "@/lib/currency";
 
 type ReceiptSale = {
@@ -11,7 +14,12 @@ type ReceiptSale = {
   payment_method: string;
   customers: { name: string; phone: string | null } | null;
   profiles: { full_name: string } | null;
-  sale_items: { qty: number; unit_price: number; line_total: number; parts: { name: string; unit: string } }[];
+  sale_items: {
+    qty: number;
+    unit_price: number;
+    line_total: number;
+    parts: { name: string; unit: string; has_warranty?: boolean; warranty_months?: number | null };
+  }[];
 };
 
 type ReceiptSettings = {
@@ -28,10 +36,22 @@ type ReceiptSettings = {
 export default function ReceiptView({ sale, settings }: { sale: ReceiptSale; settings: ReceiptSettings }) {
   const widthMm = settings.receipt_width_mm ?? 80;
   const cur = getCurrencySymbol(settings.currency);
+  const router = useRouter();
+
+  const handleClose = () => {
+    window.close();
+    // If window.close() was blocked (e.g. this tab wasn't opened by script),
+    // fall back to navigating back in history.
+    if (window.history.length > 1) {
+      router.back();
+    } else {
+      router.push("/pos");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col items-center py-8 print:bg-white print:py-0">
-      <div className="mb-3 print:hidden" style={{ width: `${widthMm}mm` }}>
+      <div className="mb-3 print:hidden flex items-center justify-between" style={{ width: `${widthMm}mm` }}>
         <Link
           href="/pos"
           className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900"
@@ -41,6 +61,16 @@ export default function ReceiptView({ sale, settings }: { sale: ReceiptSale; set
           </svg>
           Back to New Sale
         </Link>
+        <button
+          type="button"
+          onClick={handleClose}
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900"
+        >
+          Close
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4">
+            <path d="M5 5l10 10M15 5 5 15" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
       </div>
       <div
         id="receipt"
@@ -71,6 +101,9 @@ export default function ReceiptView({ sale, settings }: { sale: ReceiptSale; set
               </span>
               <span>{cur}{item.line_total.toFixed(2)}</span>
             </div>
+            {item.parts.has_warranty && item.parts.warranty_months ? (
+              <div className="text-[11px]">Warranty: {item.parts.warranty_months} month{item.parts.warranty_months === 1 ? "" : "s"}</div>
+            ) : null}
           </div>
         ))}
         <div className="border-t border-dashed border-black my-2" />

@@ -13,7 +13,12 @@ const SAMPLE_SALE = {
   customers: null,
   profiles: { full_name: "Sample Cashier" },
   sale_items: [
-    { qty: 2, unit_price: 12.5, line_total: 25.0, parts: { name: "Brake Pad Set", unit: "pcs" } },
+    {
+      qty: 2,
+      unit_price: 12.5,
+      line_total: 25.0,
+      parts: { name: "Brake Pad Set", unit: "pcs", has_warranty: true, warranty_months: 6 },
+    },
     { qty: 1, unit_price: 20.98, line_total: 20.98, parts: { name: "Oil Filter", unit: "pcs" } },
   ],
 };
