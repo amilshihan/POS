@@ -406,7 +406,7 @@ export default function InvoicesClient({
                     setError(null);
                     setViewTarget(null);
                   }}
-                  className="text-red-600 hover:text-red-700 text-sm font-medium"
+                  className="px-4 py-2.5 rounded-lg border border-red-300 text-red-600 text-sm font-semibold hover:bg-red-50 transition"
                 >
                   Cancel Invoice
                 </button>
