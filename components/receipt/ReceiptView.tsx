@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getCurrencySymbol } from "@/lib/currency";
 
 type ReceiptSale = {
@@ -29,7 +30,18 @@ export default function ReceiptView({ sale, settings }: { sale: ReceiptSale; set
   const cur = getCurrencySymbol(settings.currency);
 
   return (
-    <div className="min-h-screen bg-slate-100 flex justify-center py-8 print:bg-white print:py-0">
+    <div className="min-h-screen bg-slate-100 flex flex-col items-center py-8 print:bg-white print:py-0">
+      <div className="mb-3 print:hidden" style={{ width: `${widthMm}mm` }}>
+        <Link
+          href="/pos"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900"
+        >
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4">
+            <path d="M12 15.5 6.5 10 12 4.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Back to New Sale
+        </Link>
+      </div>
       <div
         id="receipt"
         className="bg-white shadow-sm print:shadow-none font-mono text-[12px] leading-tight"
