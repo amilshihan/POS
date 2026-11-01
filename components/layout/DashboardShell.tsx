@@ -53,7 +53,7 @@ export default function DashboardShell({
         <aside
           className={`w-60 shrink-0 bg-slate-900 text-slate-200 flex flex-col fixed inset-y-0 left-0 z-50 transition-transform duration-200 ease-out ${
             mobileOpen ? "translate-x-0" : "-translate-x-full"
-          } ${desktopCollapsed ? "lg:-translate-x-full" : "lg:translate-x-0 lg:static lg:z-auto"}`}
+          } ${desktopCollapsed ? "lg:-translate-x-full" : "lg:translate-x-0"}`}
         >
           <div className="px-5 py-5 border-b border-slate-800 flex items-start justify-between gap-2">
             <div>
@@ -78,7 +78,9 @@ export default function DashboardShell({
           </div>
         </aside>
 
-        <main className="flex-1 min-w-0">{children}</main>
+        <main className={`flex-1 min-w-0 transition-[margin] duration-200 ease-out ${desktopCollapsed ? "lg:ml-0" : "lg:ml-60"}`}>
+          {children}
+        </main>
       </div>
     </div>
   );
