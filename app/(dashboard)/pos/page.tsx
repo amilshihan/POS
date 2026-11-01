@@ -8,7 +8,7 @@ export default async function POSPage() {
   const { profile } = await getCurrentUserAndProfile();
   const admin = isAdmin(profile);
 
-  const [partsRes, customersRes, drumPricesRes] = await Promise.all([
+  const [partsRes, customersRes, drumPricesRes, draftsRes] = await Promise.all([
     admin
       ? supabase
           .from("parts")
@@ -28,6 +28,10 @@ export default async function POSPage() {
       .eq("is_active", true)
       .order("name"),
     supabase.from("drum_retail_prices").select("*").eq("is_active", true).order("sort_order"),
+    supabase
+      .from("sale_drafts")
+      .select("*, customers(name), profiles!sale_drafts_created_by_fkey(full_name)")
+      .order("created_at", { ascending: false }),
   ]);
 
   return (
@@ -37,6 +41,7 @@ export default async function POSPage() {
       cashierId={profile?.id ?? ""}
       admin={admin}
       drumRetailPrices={drumPricesRes.data ?? []}
+      initialDrafts={draftsRes.data ?? []}
     />
   );
 }

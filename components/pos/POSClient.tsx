@@ -69,18 +69,49 @@ function lineMinPrice(l: CartLine): number | null {
 
 type PaymentMethod = "cash" | "credit" | "cheque" | "mixed";
 
+type DraftCartLine = {
+  partId: string;
+  qty: number;
+  discount: number;
+  packageId?: string;
+  drumTierId?: string;
+};
+
+type DraftPayload = {
+  lines: DraftCartLine[];
+  packagePrices: Record<string, number>;
+};
+
+type DraftRow = {
+  id: string;
+  label: string | null;
+  cart: DraftPayload;
+  customer_id: string | null;
+  new_customer_title: string | null;
+  new_customer_name: string | null;
+  new_customer_phone_country: string | null;
+  new_customer_phone: string | null;
+  discount: number;
+  payment_method: PaymentMethod;
+  created_at: string;
+  customers: { name: string } | null;
+  profiles: { full_name: string } | null;
+};
+
 export default function POSClient({
   initialParts,
   customers,
   cashierId,
   admin,
   drumRetailPrices,
+  initialDrafts,
 }: {
   initialParts: PartRow[];
   customers: CustomerRow[];
   cashierId: string;
   admin: boolean;
   drumRetailPrices: DrumPriceRow[];
+  initialDrafts: DraftRow[];
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -132,6 +163,9 @@ export default function POSClient({
   const [showPackageModal, setShowPackageModal] = useState(false);
   const [packageSelection, setPackageSelection] = useState<Set<string>>(new Set());
   const [packagePriceInput, setPackagePriceInput] = useState("");
+  const [drafts, setDrafts] = useState<DraftRow[]>(initialDrafts);
+  const [showDraftsModal, setShowDraftsModal] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
   const scanInputRef = useRef<HTMLInputElement>(null);
 
   async function handleOpenDrawer() {
@@ -145,6 +179,118 @@ export default function POSClient({
     } finally {
       setOpeningDrawer(false);
     }
+  }
+
+  function resetSaleForm() {
+    setCart([]);
+    setPackagePrices({});
+    setLineErrors({});
+    setCustomerId("");
+    setNewCustomerMode(false);
+    setNewCustomerTitle("");
+    setNewCustomerName("");
+    setNewCustomerPhoneCountry(DEFAULT_COUNTRY_CODE);
+    setNewCustomerPhone("");
+    setDiscount(0);
+    setPaymentMethod("cash");
+    setAmountPaid("");
+    setChequeNumber("");
+    setBankName("");
+    setChequeDueDate("");
+    setError(null);
+  }
+
+  async function handleSaveDraft() {
+    if (cart.length === 0) {
+      setAlertMessage("Add at least one item before saving a draft.");
+      return;
+    }
+    setSavingDraft(true);
+    const customerLabel = newCustomerMode
+      ? newCustomerName.trim() || "New customer"
+      : (customers.find((c) => c.id === customerId)?.name ?? "Walk-in customer");
+    const payload: DraftPayload = {
+      lines: cart.map((l) => ({
+        partId: l.part.id,
+        qty: l.qty,
+        discount: l.discount,
+        packageId: l.packageId,
+        drumTierId: l.drumTier?.id,
+      })),
+      packagePrices,
+    };
+    const { data, error: draftError } = await supabase
+      .from("sale_drafts")
+      .insert({
+        label: `${customerLabel} — ${cart.length} item${cart.length === 1 ? "" : "s"}`,
+        cart: payload,
+        customer_id: newCustomerMode ? null : customerId || null,
+        new_customer_title: newCustomerMode ? newCustomerTitle || null : null,
+        new_customer_name: newCustomerMode ? newCustomerName.trim() || null : null,
+        new_customer_phone_country: newCustomerMode ? newCustomerPhoneCountry : null,
+        new_customer_phone: newCustomerMode ? newCustomerPhone || null : null,
+        discount,
+        payment_method: paymentMethod,
+        created_by: cashierId,
+      })
+      .select("*, customers(name), profiles!sale_drafts_created_by_fkey(full_name)")
+      .single();
+    setSavingDraft(false);
+    if (draftError || !data) {
+      setAlertMessage(draftError?.message ?? "Could not save the draft.");
+      return;
+    }
+    setDrafts((prev) => [data as unknown as DraftRow, ...prev]);
+    resetSaleForm();
+    setAlertMessage("Draft saved. You're ready for a new sale.");
+  }
+
+  function resumeDraft(draft: DraftRow) {
+    if (cart.length > 0) {
+      setAlertMessage("Finish or save the current sale as a draft first, then resume this one.");
+      return;
+    }
+    const skipped: string[] = [];
+    const lines: CartLine[] = [];
+    for (const dl of draft.cart.lines) {
+      const part = initialParts.find((p) => p.id === dl.partId);
+      if (!part) {
+        skipped.push(dl.partId);
+        continue;
+      }
+      const drumTier = dl.drumTierId ? drumTiersByPartId.get(dl.partId)?.find((t) => t.id === dl.drumTierId) : undefined;
+      lines.push({ part, qty: dl.qty, discount: dl.discount, packageId: dl.packageId, drumTier });
+    }
+    setCart(lines);
+    setPackagePrices(draft.cart.packagePrices ?? {});
+    setLineErrors({});
+    setError(null);
+    if (draft.customer_id) {
+      setNewCustomerMode(false);
+      setCustomerId(draft.customer_id);
+    } else if (draft.new_customer_name) {
+      setNewCustomerMode(true);
+      setNewCustomerTitle(draft.new_customer_title ?? "");
+      setNewCustomerName(draft.new_customer_name ?? "");
+      setNewCustomerPhoneCountry(draft.new_customer_phone_country ?? DEFAULT_COUNTRY_CODE);
+      setNewCustomerPhone(draft.new_customer_phone ?? "");
+    } else {
+      setNewCustomerMode(false);
+      setCustomerId("");
+    }
+    setDiscount(draft.discount);
+    setPaymentMethod(draft.payment_method);
+    setShowDraftsModal(false);
+    if (skipped.length > 0) {
+      setAlertMessage(`${skipped.length} item(s) from this draft are no longer available and were skipped.`);
+    }
+    supabase.from("sale_drafts").delete().eq("id", draft.id).then(() => {});
+    setDrafts((prev) => prev.filter((d) => d.id !== draft.id));
+  }
+
+  async function discardDraft(draftId: string) {
+    await supabase.from("sale_drafts").delete().eq("id", draftId);
+    setDrafts((prev) => prev.filter((d) => d.id !== draftId));
   }
 
   function lineEffectiveUnitPrice(l: CartLine): number {
@@ -532,6 +678,33 @@ export default function POSClient({
                 <path d="M8.5 8.5h3" strokeLinecap="round" />
               </svg>
               {openingDrawer ? "Opening..." : "Open Drawer"}
+            </button>
+            <button
+              onClick={handleSaveDraft}
+              disabled={savingDraft || cart.length === 0}
+              title="Save this sale as a draft and start a new one"
+              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 transition"
+            >
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-4 h-4">
+                <path d="M4 3.5h9l3 3V16a.5.5 0 0 1-.5.5h-11A.5.5 0 0 1 4 16V4a.5.5 0 0 1 .5-.5Z" strokeLinejoin="round" />
+                <path d="M6.5 3.5V7h6V3.5M6.5 11h7v5.5h-7z" strokeLinejoin="round" />
+              </svg>
+              {savingDraft ? "Saving..." : "Save Draft"}
+            </button>
+            <button
+              onClick={() => setShowDraftsModal(true)}
+              title="Resume a saved draft"
+              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition"
+            >
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-4 h-4">
+                <path d="M3 5h14M3 10h14M3 15h9" strokeLinecap="round" />
+              </svg>
+              Drafts
+              {drafts.length > 0 && (
+                <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full bg-blue-600 text-white text-xs font-semibold">
+                  {drafts.length}
+                </span>
+              )}
             </button>
           </div>
         </div>
@@ -1023,6 +1196,58 @@ export default function POSClient({
             >
               Cancel
             </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {showDraftsModal && (
+      <div
+        className="fixed inset-0 bg-black/40 flex items-center justify-center z-40 p-4"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) setShowDraftsModal(false);
+        }}
+      >
+        <div className="bg-white rounded-xl p-6 w-full max-w-md space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-lg text-slate-900">Saved Drafts</h2>
+            <button onClick={() => setShowDraftsModal(false)} className="text-slate-400 hover:text-slate-600">
+              ✕
+            </button>
+          </div>
+
+          <div className="max-h-96 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-lg">
+            {drafts.length === 0 ? (
+              <p className="px-3 py-6 text-sm text-slate-400 text-center">No saved drafts.</p>
+            ) : (
+              drafts.map((d) => (
+                <div key={d.id} className="px-3 py-2.5 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-slate-800 truncate">
+                      {d.label ?? "Draft"}
+                    </div>
+                    <div className="text-xs text-slate-400">
+                      {new Date(d.created_at).toLocaleString()}
+                      {d.profiles?.full_name ? ` · ${d.profiles.full_name}` : ""}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => resumeDraft(d)}
+                      className="text-blue-600 hover:text-blue-700 text-xs font-medium"
+                    >
+                      Resume
+                    </button>
+                    <button
+                      onClick={() => discardDraft(d.id)}
+                      className="text-red-500 hover:text-red-700 text-xs font-medium"
+                    >
+                      Discard
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
