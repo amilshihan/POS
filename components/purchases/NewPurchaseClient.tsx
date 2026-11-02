@@ -24,7 +24,12 @@ type Line = {
   unitCost: number;
   discount: number;
   retailPrice: string;
+  sellPrice: string;
 };
+
+function defaultSellPrice(cost: number) {
+  return (cost * 1.1).toFixed(2);
+}
 
 type ExtractedItem = {
   name: string;
@@ -115,6 +120,7 @@ export default function NewPurchaseClient({
           unitCost: part.cost_price,
           discount: 0,
           retailPrice: "",
+          sellPrice: defaultSellPrice(part.cost_price),
         },
       ];
     });
@@ -148,7 +154,13 @@ export default function NewPurchaseClient({
   }
 
   function matchExistingPart(key: string, part: Part) {
-    updateLine(key, { part, name: part.name, sku: part.sku ?? "", unitCost: part.cost_price });
+    updateLine(key, {
+      part,
+      name: part.name,
+      sku: part.sku ?? "",
+      unitCost: part.cost_price,
+      sellPrice: defaultSellPrice(part.cost_price),
+    });
   }
 
   async function handleScanFile(file: File) {
@@ -224,6 +236,7 @@ export default function NewPurchaseClient({
         unitCost: item.unit_cost || 0,
         discount: item.discount || 0,
         retailPrice: item.retail_price != null ? String(item.retail_price) : "",
+        sellPrice: defaultSellPrice(item.unit_cost || 0),
       };
     });
     setLines((prev) => [...prev, ...newLines]);
@@ -280,7 +293,7 @@ export default function NewPurchaseClient({
             name: l.name.trim(),
             sku: l.sku.trim() || null,
             cost_price: l.unitCost,
-            sell_price: l.unitCost * 1.03,
+            sell_price: l.sellPrice ? Number(l.sellPrice) : Number(defaultSellPrice(l.unitCost)),
             retail_price: l.retailPrice ? Number(l.retailPrice) : 0,
             qty_on_hand: 0,
             unit: "pcs",
@@ -315,6 +328,7 @@ export default function NewPurchaseClient({
           unit_cost: l.unitCost,
           discount: l.discount,
           retail_price: l.retailPrice ? Number(l.retailPrice) : null,
+          sell_price: l.sellPrice ? Number(l.sellPrice) : null,
           line_total: lineTotal(l),
         }))
       );
@@ -500,6 +514,7 @@ export default function NewPurchaseClient({
               <th className="text-center px-4 py-2 font-medium">Qty</th>
               <th className="text-right px-4 py-2 font-medium">Unit Cost (after discount)</th>
               <th className="text-right px-4 py-2 font-medium">Discount (record)</th>
+              <th className="text-right px-4 py-2 font-medium">Price (POS sell price)</th>
               <th className="text-right px-4 py-2 font-medium">Retail Price</th>
               <th className="text-right px-4 py-2 font-medium">Line Total</th>
               <th className="px-4 py-2"></th>
@@ -508,7 +523,7 @@ export default function NewPurchaseClient({
           <tbody className="divide-y divide-slate-100">
             {lines.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
                   No parts added yet.
                 </td>
               </tr>
@@ -563,6 +578,17 @@ export default function NewPurchaseClient({
                       value={l.discount}
                       onChange={(e) => updateLine(l.key, { discount: Number(e.target.value) })}
                       className="w-20 text-right rounded border border-slate-300 py-1"
+                    />
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={l.sellPrice}
+                      onChange={(e) => updateLine(l.key, { sellPrice: e.target.value })}
+                      placeholder="-"
+                      className="w-24 text-right rounded border border-slate-300 py-1"
                     />
                   </td>
                   <td className="px-4 py-2 text-right">
