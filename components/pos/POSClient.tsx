@@ -67,7 +67,7 @@ function lineMinPrice(l: CartLine): number | null {
   return base;
 }
 
-type PaymentMethod = "cash" | "credit" | "cheque" | "mixed";
+type PaymentMethod = "cash" | "credit" | "cheque" | "mixed" | "card" | "online";
 
 type DraftCartLine = {
   partId: string;
@@ -80,6 +80,14 @@ type DraftCartLine = {
 type DraftPayload = {
   lines: DraftCartLine[];
   packagePrices: Record<string, number>;
+};
+
+type SavedPackage = {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  package_items: { id: string; qty: number; part_id: string }[];
 };
 
 type DraftRow = {
@@ -105,6 +113,7 @@ export default function POSClient({
   admin,
   drumRetailPrices,
   initialDrafts,
+  packages,
 }: {
   initialParts: PartRow[];
   customers: CustomerRow[];
@@ -112,6 +121,7 @@ export default function POSClient({
   admin: boolean;
   drumRetailPrices: DrumPriceRow[];
   initialDrafts: DraftRow[];
+  packages: SavedPackage[];
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -163,6 +173,7 @@ export default function POSClient({
   const [showPackageModal, setShowPackageModal] = useState(false);
   const [packageSelection, setPackageSelection] = useState<Set<string>>(new Set());
   const [packagePriceInput, setPackagePriceInput] = useState("");
+  const [showSavedPackagesModal, setShowSavedPackagesModal] = useState(false);
   const [drafts, setDrafts] = useState<DraftRow[]>(initialDrafts);
   const [showDraftsModal, setShowDraftsModal] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
@@ -339,6 +350,12 @@ export default function POSClient({
       .slice(0, 20);
   }, [search, initialParts]);
 
+  const filteredPackages = useMemo(() => {
+    if (!search.trim()) return [];
+    const q = search.toLowerCase();
+    return packages.filter((pkg) => pkg.name.toLowerCase().includes(q)).slice(0, 5);
+  }, [search, packages]);
+
   function addPart(part: PartRow) {
     const tiers = part.is_drum ? drumTiersByPartId.get(part.id) : undefined;
     if (tiers && tiers.length > 0) {
@@ -462,6 +479,30 @@ export default function POSClient({
       delete next[packageId];
       return next;
     });
+  }
+
+  function addSavedPackage(pkg: SavedPackage) {
+    const resolved: { part: PartRow; qty: number }[] = [];
+    for (const item of pkg.package_items) {
+      const part = initialParts.find((p) => p.id === item.part_id);
+      if (!part) {
+        setAlertMessage(`"${pkg.name}" includes a product that's no longer available. Update the package first.`);
+        return;
+      }
+      resolved.push({ part, qty: Number(item.qty) });
+    }
+    const conflict = resolved.find((r) => cart.some((l) => lineKey(l) === r.part.id));
+    if (conflict) {
+      setAlertMessage(`Remove "${conflict.part.name}" from the cart before adding this package.`);
+      return;
+    }
+    const packageId = crypto.randomUUID();
+    setCart((prev) => [
+      ...prev,
+      ...resolved.map((r) => ({ part: r.part, qty: r.qty, discount: 0, packageId })),
+    ]);
+    setPackagePrices((prev) => ({ ...prev, [packageId]: pkg.price }));
+    setShowSavedPackagesModal(false);
   }
 
   function handleScanKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -652,7 +693,19 @@ export default function POSClient({
       <div className="lg:col-span-2 space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-slate-900">New Sale</h1>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setShowSavedPackagesModal(true)}
+              disabled={packages.length === 0}
+              title="Add a saved package to the cart"
+              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 transition"
+            >
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-4 h-4">
+                <path d="M3 6.5 10 3l7 3.5-7 3.5-7-3.5Z" strokeLinejoin="round" />
+                <path d="M3 6.5V13l7 3.5 7-3.5V6.5" strokeLinejoin="round" />
+              </svg>
+              Packages
+            </button>
             <button
               onClick={openPackageModal}
               disabled={packageableLines.length < 2}
@@ -733,8 +786,34 @@ export default function POSClient({
               placeholder="Type a part name..."
               className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            {filteredParts.length > 0 && (
+            {(filteredParts.length > 0 || filteredPackages.length > 0) && (
               <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-80 overflow-y-auto">
+                {filteredPackages.map((pkg) => (
+                  <button
+                    key={`pkg-${pkg.id}`}
+                    onClick={() => addSavedPackage(pkg)}
+                    className="w-full text-left px-3 py-2 hover:bg-amber-50 flex justify-between text-sm border-b border-slate-100 last:border-0 bg-amber-50/40"
+                  >
+                    <span>
+                      📦 {pkg.name}
+                      <span className="text-slate-400">
+                        {" "}
+                        (
+                        {pkg.package_items
+                          .map((pi) => {
+                            const part = initialParts.find((p) => p.id === pi.part_id);
+                            return `${pi.qty}× ${part?.name ?? "Unknown"}`;
+                          })
+                          .join(", ")}
+                        )
+                      </span>
+                    </span>
+                    <span className="text-slate-500 shrink-0 ml-2">
+                      {currency}
+                      {pkg.price.toFixed(2)}
+                    </span>
+                  </button>
+                ))}
                 {filteredParts.map((p) => (
                   <button
                     key={p.id}
@@ -970,6 +1049,8 @@ export default function POSClient({
               className="w-full rounded-lg border border-slate-300 px-3 py-2"
             >
               <option value="cash">Cash (paid in full)</option>
+              <option value="card">Card (paid in full)</option>
+              <option value="online">Online Transfer (paid in full)</option>
               <option value="credit">Credit (customer owes)</option>
               <option value="cheque">Cheque</option>
               <option value="mixed">Mixed (partial cash + credit)</option>
@@ -1142,6 +1223,54 @@ export default function POSClient({
             >
               Create Package
             </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {showSavedPackagesModal && (
+      <div
+        className="fixed inset-0 bg-black/40 flex items-center justify-center z-40 p-4"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) setShowSavedPackagesModal(false);
+        }}
+      >
+        <div className="bg-white rounded-xl p-6 w-full max-w-md space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-lg text-slate-900">Packages</h2>
+            <button onClick={() => setShowSavedPackagesModal(false)} className="text-slate-400 hover:text-slate-600">
+              ✕
+            </button>
+          </div>
+
+          <div className="max-h-96 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-lg">
+            {packages.length === 0 ? (
+              <p className="px-3 py-6 text-sm text-slate-400 text-center">No packages set up yet.</p>
+            ) : (
+              packages.map((pkg) => (
+                <button
+                  key={pkg.id}
+                  onClick={() => addSavedPackage(pkg)}
+                  className="w-full text-left px-3 py-2.5 flex items-center justify-between gap-2 hover:bg-slate-50"
+                >
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-slate-800">{pkg.name}</div>
+                    <div className="text-xs text-slate-400 truncate">
+                      {pkg.package_items
+                        .map((pi) => {
+                          const part = initialParts.find((p) => p.id === pi.part_id);
+                          return `${pi.qty}× ${part?.name ?? "Unknown"}`;
+                        })
+                        .join(", ")}
+                    </div>
+                  </div>
+                  <span className="text-sm font-semibold text-slate-900 shrink-0">
+                    {currency}
+                    {pkg.price.toFixed(2)}
+                  </span>
+                </button>
+              ))
+            )}
           </div>
         </div>
       </div>

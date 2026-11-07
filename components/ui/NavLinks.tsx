@@ -20,10 +20,13 @@ const WORKSHOP_LINKS = [
 ];
 
 const ADMIN_LINKS = [
+  { href: "/packages", label: "Packages" },
   { href: "/suppliers", label: "Suppliers" },
   { href: "/purchases", label: "Purchases" },
   { href: "/purchases/new", label: "New Purchase" },
+  { href: "/expenses", label: "Expenses" },
   { href: "/reports", label: "Reports" },
+  { href: "/finance", label: "Finance" },
   { href: "/users", label: "Staff" },
   { href: "/settings", label: "Settings" },
 ];
