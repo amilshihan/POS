@@ -73,6 +73,13 @@ function GroupPicker({
           setQuery("");
           setOpen(true);
         }}
+        onClick={() => {
+          // Selecting an option keeps the input focused (its onMouseDown
+          // preempts the blur), so a later click here fires no new focus
+          // event — open on click too, not just on focus.
+          setQuery("");
+          setOpen(true);
+        }}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder={placeholder}
         className="w-full rounded-lg border border-slate-300 px-3 py-2"
@@ -470,6 +477,11 @@ export default function InventoryClient({
         p.sku?.toLowerCase().includes(search.toLowerCase())
     );
 
+    if (groupId) {
+      const selectedPath = groupPathById.get(groupId) ?? "";
+      rows = rows.filter((p) => p.category_id === groupId || groupPathOf(p).startsWith(selectedPath + "/"));
+    }
+
     const nameQ = colFilters.name.trim().toLowerCase();
     if (nameQ) rows = rows.filter((p) => p.name.toLowerCase().includes(nameQ));
 
@@ -523,7 +535,7 @@ export default function InventoryClient({
     }
 
     return rows;
-  }, [initialParts, search, colFilters, sortColumn, sortDirection, groupPathById]);
+  }, [initialParts, search, colFilters, sortColumn, sortDirection, groupPathById, groupId]);
 
   function nextSku(): string {
     const numericSkus = initialParts
@@ -1000,6 +1012,50 @@ export default function InventoryClient({
     });
   }
 
+  async function handleToggleActive(p: Part) {
+    setBusy({ message: `${p.is_active ? "Deactivating" : "Activating"} "${p.name}", please wait…` });
+    const { error } = await supabase.from("parts").update({ is_active: !p.is_active }).eq("id", p.id);
+    setBusy(null);
+    if (error) {
+      setDeleteResult({ deleted: 0, failed: 1, errors: [`${p.name}: ${error.message}`] });
+      return;
+    }
+    router.refresh();
+  }
+
+  function handleSetActiveSelected(active: boolean) {
+    const targets = initialParts.filter((p) => selectedIds.has(p.id) && p.is_active !== active);
+    if (targets.length === 0) return;
+    askConfirm(
+      `${active ? "Activate" : "Deactivate"} ${targets.length} selected product(s)?`,
+      async () => {
+        let done = 0;
+        const errors: string[] = [];
+        for (let i = 0; i < targets.length; i++) {
+          const p = targets[i];
+          setBusy({
+            message: `${active ? "Activating" : "Deactivating"} products, please wait…`,
+            current: i + 1,
+            total: targets.length,
+          });
+          const { error } = await supabase.from("parts").update({ is_active: active }).eq("id", p.id);
+          if (error) {
+            errors.push(`${p.name}: ${error.message}`);
+          } else {
+            done++;
+          }
+        }
+        setBusy(null);
+        if (errors.length > 0) {
+          setDeleteResult({ deleted: done, failed: errors.length, errors });
+        }
+        setSelectedIds(new Set());
+        router.refresh();
+      },
+      { confirmLabel: active ? "Activate" : "Deactivate", danger: !active }
+    );
+  }
+
   function toggleSelected(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -1153,23 +1209,46 @@ export default function InventoryClient({
               )}
             </button>
             {selectedIds.size > 0 && (
-              <button
-                onClick={handleDeleteSelected}
-                title={`Delete ${selectedIds.size} selected product(s)`}
-                aria-label="Delete Selected"
-                className="relative w-10 h-10 flex items-center justify-center rounded-lg border border-red-300 text-red-600 hover:bg-red-50"
-              >
-                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5">
-                  <path
-                    d="M4 6h12M8 6V4.5A1.5 1.5 0 0 1 9.5 3h1A1.5 1.5 0 0 1 12 4.5V6m2 0-.6 9.02A1.5 1.5 0 0 1 11.9 16.5h-3.8a1.5 1.5 0 0 1-1.5-1.48L6 6"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-semibold flex items-center justify-center">
-                  {selectedIds.size}
-                </span>
-              </button>
+              <>
+                <button
+                  onClick={() => handleSetActiveSelected(true)}
+                  title={`Activate ${selectedIds.size} selected product(s)`}
+                  aria-label="Activate Selected"
+                  className="w-10 h-10 flex items-center justify-center rounded-lg border border-green-300 text-green-600 hover:bg-green-50"
+                >
+                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5">
+                    <path d="M4 10.5 8 14.5 16 5.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => handleSetActiveSelected(false)}
+                  title={`Deactivate ${selectedIds.size} selected product(s)`}
+                  aria-label="Deactivate Selected"
+                  className="w-10 h-10 flex items-center justify-center rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50"
+                >
+                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5">
+                    <circle cx="10" cy="10" r="7" />
+                    <path d="M5.5 14.5 14.5 5.5" strokeLinecap="round" />
+                  </svg>
+                </button>
+                <button
+                  onClick={handleDeleteSelected}
+                  title={`Delete ${selectedIds.size} selected product(s)`}
+                  aria-label="Delete Selected"
+                  className="relative w-10 h-10 flex items-center justify-center rounded-lg border border-red-300 text-red-600 hover:bg-red-50"
+                >
+                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5">
+                    <path
+                      d="M4 6h12M8 6V4.5A1.5 1.5 0 0 1 9.5 3h1A1.5 1.5 0 0 1 12 4.5V6m2 0-.6 9.02A1.5 1.5 0 0 1 11.9 16.5h-3.8a1.5 1.5 0 0 1-1.5-1.48L6 6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-semibold flex items-center justify-center">
+                    {selectedIds.size}
+                  </span>
+                </button>
+              </>
             )}
           </div>
         )}
@@ -1377,6 +1456,14 @@ export default function InventoryClient({
                       className="text-blue-600 hover:underline text-xs font-medium"
                     >
                       Edit
+                    </button>
+                    <button
+                      onClick={() => handleToggleActive(p)}
+                      className={`ml-3 hover:underline text-xs font-medium ${
+                        p.is_active ? "text-slate-600" : "text-green-600"
+                      }`}
+                    >
+                      {p.is_active ? "Deactivate" : "Activate"}
                     </button>
                     <button
                       onClick={() => handleDeleteOne(p)}
