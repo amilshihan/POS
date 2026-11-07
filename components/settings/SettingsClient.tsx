@@ -26,17 +26,40 @@ type Settings = {
 // physical printer to choose there.
 const PRINTER_SUGGESTIONS = ["XP-80C", "Microsoft Print to PDF"];
 
+type PaymentType = {
+  id: string;
+  name: string;
+  kind: "cash" | "card" | "online";
+  commission_percent: number;
+  is_active: boolean;
+  sort_order: number;
+};
+
 const TABS = [
   { id: "general", label: "General" },
   { id: "print", label: "Print" },
+  { id: "payments", label: "Payments" },
 ] as const;
 
 type Tab = (typeof TABS)[number]["id"];
 
-export default function SettingsClient({ settings }: { settings: Settings | null }) {
+export default function SettingsClient({
+  settings,
+  initialPaymentTypes,
+}: {
+  settings: Settings | null;
+  initialPaymentTypes: PaymentType[];
+}) {
   const router = useRouter();
   const supabase = createClient();
   const [tab, setTab] = useState<Tab>("general");
+  const [paymentTypes, setPaymentTypes] = useState<PaymentType[]>(initialPaymentTypes);
+  const [ptName, setPtName] = useState("");
+  const [ptKind, setPtKind] = useState<"cash" | "card" | "online">("card");
+  const [ptCommission, setPtCommission] = useState("0");
+  const [ptError, setPtError] = useState<string | null>(null);
+  const [ptSaving, setPtSaving] = useState(false);
+  const [editingPtId, setEditingPtId] = useState<string | null>(null);
   const [form, setForm] = useState({
     shop_name: settings?.shop_name ?? "",
     address: settings?.address ?? "",
@@ -82,6 +105,88 @@ export default function SettingsClient({ settings }: { settings: Settings | null
     }
   }
 
+  function resetPtForm() {
+    setEditingPtId(null);
+    setPtName("");
+    setPtKind("card");
+    setPtCommission("0");
+    setPtError(null);
+  }
+
+  function openEditPt(pt: PaymentType) {
+    setEditingPtId(pt.id);
+    setPtName(pt.name);
+    setPtKind(pt.kind);
+    setPtCommission(String(pt.commission_percent));
+    setPtError(null);
+  }
+
+  async function handleSavePaymentType() {
+    setPtError(null);
+    if (!ptName.trim()) {
+      setPtError("Enter a name for this payment type.");
+      return;
+    }
+    const commissionNum = Number(ptCommission);
+    if (commissionNum < 0 || commissionNum > 100 || Number.isNaN(commissionNum)) {
+      setPtError("Commission must be a number between 0 and 100.");
+      return;
+    }
+    setPtSaving(true);
+    if (editingPtId) {
+      const { data, error } = await supabase
+        .from("payment_types")
+        .update({ name: ptName.trim(), kind: ptKind, commission_percent: commissionNum })
+        .eq("id", editingPtId)
+        .select()
+        .single();
+      setPtSaving(false);
+      if (error || !data) {
+        setPtError(error?.message ?? "Could not save.");
+        return;
+      }
+      setPaymentTypes((prev) => prev.map((pt) => (pt.id === editingPtId ? data : pt)));
+    } else {
+      const { data, error } = await supabase
+        .from("payment_types")
+        .insert({
+          name: ptName.trim(),
+          kind: ptKind,
+          commission_percent: commissionNum,
+          sort_order: paymentTypes.length,
+        })
+        .select()
+        .single();
+      setPtSaving(false);
+      if (error || !data) {
+        setPtError(error?.message ?? "Could not save.");
+        return;
+      }
+      setPaymentTypes((prev) => [...prev, data]);
+    }
+    resetPtForm();
+    router.refresh();
+  }
+
+  async function handleTogglePtActive(pt: PaymentType) {
+    const { error } = await supabase.from("payment_types").update({ is_active: !pt.is_active }).eq("id", pt.id);
+    if (!error) {
+      setPaymentTypes((prev) => prev.map((p) => (p.id === pt.id ? { ...p, is_active: !p.is_active } : p)));
+      router.refresh();
+    }
+  }
+
+  async function handleDeletePt(pt: PaymentType) {
+    if (!window.confirm(`Delete payment type "${pt.name}"?`)) return;
+    const { error } = await supabase.from("payment_types").delete().eq("id", pt.id);
+    if (!error) {
+      setPaymentTypes((prev) => prev.filter((p) => p.id !== pt.id));
+      router.refresh();
+    } else {
+      setPtError(error.message);
+    }
+  }
+
   async function handleSave() {
     setSaving(true);
     setSaved(false);
@@ -107,7 +212,7 @@ export default function SettingsClient({ settings }: { settings: Settings | null
   }
 
   return (
-    <div className="p-6 max-w-lg space-y-4">
+    <div className="p-6 max-w-2xl space-y-4">
       <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
 
       <div className="flex gap-1 border-b border-slate-200">
@@ -323,14 +428,128 @@ export default function SettingsClient({ settings }: { settings: Settings | null
           </>
         )}
 
-        {saved && <div className="text-sm text-green-600">Saved.</div>}
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="rounded-lg bg-blue-600 text-white font-medium px-5 py-2.5 hover:bg-blue-700 disabled:opacity-60"
-        >
-          {saving ? "Saving..." : "Save Settings"}
-        </button>
+        {tab === "payments" && (
+          <>
+            <p className="text-xs text-slate-500">
+              Payment types shown at checkout and when recording a customer payment. Each type's
+              commission % is captured on every sale/payment so past figures don&apos;t change if you
+              edit the rate later.
+            </p>
+
+            <div className="border border-slate-200 rounded-lg divide-y divide-slate-100">
+              {paymentTypes.length === 0 ? (
+                <p className="px-3 py-4 text-sm text-slate-400 text-center">No payment types yet.</p>
+              ) : (
+                paymentTypes.map((pt) => (
+                  <div key={pt.id} className="flex items-center justify-between gap-2 px-3 py-2.5">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-slate-800">
+                        {pt.name}
+                        {!pt.is_active && (
+                          <span className="ml-2 text-[10px] uppercase tracking-wide text-slate-500 bg-slate-100 rounded px-1.5 py-0.5">
+                            Inactive
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-400">
+                        {pt.kind} &middot; {pt.commission_percent}% commission
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <button onClick={() => openEditPt(pt)} className="text-blue-600 hover:underline text-xs font-medium">
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleTogglePtActive(pt)}
+                        className="text-slate-500 hover:underline text-xs font-medium"
+                      >
+                        {pt.is_active ? "Deactivate" : "Activate"}
+                      </button>
+                      <button
+                        onClick={() => handleDeletePt(pt)}
+                        className="text-red-600 hover:underline text-xs font-medium"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="border border-slate-200 rounded-lg p-3 space-y-3">
+              <div className="text-sm font-semibold text-slate-700">
+                {editingPtId ? "Edit payment type" : "Add payment type"}
+              </div>
+              {ptError && <div className="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{ptError}</div>}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">Name</label>
+                  <input
+                    value={ptName}
+                    onChange={(e) => setPtName(e.target.value)}
+                    placeholder="e.g. Visa Card"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">Kind</label>
+                  <select
+                    value={ptKind}
+                    onChange={(e) => setPtKind(e.target.value as "cash" | "card" | "online")}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                  >
+                    <option value="cash">Cash</option>
+                    <option value="card">Card</option>
+                    <option value="online">Online Transfer</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">Commission %</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="0.01"
+                    value={ptCommission}
+                    onChange={(e) => setPtCommission(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSavePaymentType}
+                  disabled={ptSaving}
+                  className="rounded-lg bg-blue-600 text-white font-medium px-4 py-2 text-sm hover:bg-blue-700 disabled:opacity-60"
+                >
+                  {ptSaving ? "Saving..." : editingPtId ? "Save Changes" : "+ Add Payment Type"}
+                </button>
+                {editingPtId && (
+                  <button
+                    onClick={resetPtForm}
+                    className="rounded-lg border border-slate-300 text-slate-600 font-medium px-4 py-2 text-sm hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+
+        {tab !== "payments" && (
+          <>
+            {saved && <div className="text-sm text-green-600">Saved.</div>}
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="rounded-lg bg-blue-600 text-white font-medium px-5 py-2.5 hover:bg-blue-700 disabled:opacity-60"
+            >
+              {saving ? "Saving..." : "Save Settings"}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

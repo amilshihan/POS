@@ -269,7 +269,15 @@ const IconPencil = ({ className }: { className?: string }) => (
   <FieldIcon className={className} path={<path d="M13.5 3.5l3 3L6 17H3v-3L13.5 3.5Z" strokeLinejoin="round" />} />
 );
 
-export default function CustomersClient({ initialCustomers }: { initialCustomers: Customer[] }) {
+type PaymentType = { id: string; name: string; kind: "cash" | "card" | "online" };
+
+export default function CustomersClient({
+  initialCustomers,
+  paymentTypes,
+}: {
+  initialCustomers: Customer[];
+  paymentTypes: PaymentType[];
+}) {
   const router = useRouter();
   const supabase = createClient();
   const currency = useCurrencySymbol();
@@ -302,7 +310,7 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
   const [saving, setSaving] = useState(false);
   const [payFor, setPayFor] = useState<Customer | null>(null);
   const [payAmount, setPayAmount] = useState("");
-  const [payMethod, setPayMethod] = useState<"cash" | "card" | "online" | "cheque">("cash");
+  const [payMethod, setPayMethod] = useState<"cheque" | string>(paymentTypes[0]?.id ?? "cheque");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmDialog, setConfirmDialog] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -467,10 +475,12 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
     const {
       data: { user },
     } = await supabase.auth.getUser();
+    const selectedType = paymentTypes.find((pt) => pt.id === payMethod);
     const { error } = await supabase.from("payments").insert({
       customer_id: payFor.id,
       amount,
-      method: payMethod,
+      method: selectedType ? selectedType.kind : "cheque",
+      payment_type_id: selectedType ? selectedType.id : null,
       received_by: user?.id,
     });
     if (error) {
@@ -479,7 +489,7 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
     }
     setPayFor(null);
     setPayAmount("");
-    setPayMethod("cash");
+    setPayMethod(paymentTypes[0]?.id ?? "cheque");
     router.refresh();
   }
 
@@ -1118,14 +1128,12 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
               onChange={(e) => setPayAmount(e.target.value)}
               className={inputBase}
             />
-            <select
-              value={payMethod}
-              onChange={(e) => setPayMethod(e.target.value as typeof payMethod)}
-              className={inputBase}
-            >
-              <option value="cash">Cash</option>
-              <option value="card">Card</option>
-              <option value="online">Online Transfer</option>
+            <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)} className={inputBase}>
+              {paymentTypes.map((pt) => (
+                <option key={pt.id} value={pt.id}>
+                  {pt.name}
+                </option>
+              ))}
               <option value="cheque">Cheque</option>
             </select>
             <div className="flex justify-end gap-2 pt-2">

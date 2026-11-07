@@ -82,6 +82,8 @@ type DraftPayload = {
   packagePrices: Record<string, number>;
 };
 
+type PaymentType = { id: string; name: string; kind: "cash" | "card" | "online"; commission_percent: number };
+
 type SavedPackage = {
   id: string;
   name: string;
@@ -114,6 +116,7 @@ export default function POSClient({
   drumRetailPrices,
   initialDrafts,
   packages,
+  paymentTypes,
 }: {
   initialParts: PartRow[];
   customers: CustomerRow[];
@@ -122,6 +125,7 @@ export default function POSClient({
   drumRetailPrices: DrumPriceRow[];
   initialDrafts: DraftRow[];
   packages: SavedPackage[];
+  paymentTypes: PaymentType[];
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -160,6 +164,22 @@ export default function POSClient({
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
   const [discount, setDiscount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [paymentTypeId, setPaymentTypeId] = useState<string | null>(
+    paymentTypes.find((pt) => pt.kind === "cash")?.id ?? null
+  );
+
+  function handlePaymentSelect(value: string) {
+    if (value.startsWith("pt:")) {
+      const pt = paymentTypes.find((p) => p.id === value.slice(3));
+      if (pt) {
+        setPaymentMethod(pt.kind);
+        setPaymentTypeId(pt.id);
+      }
+    } else {
+      setPaymentMethod(value as PaymentMethod);
+      setPaymentTypeId(null);
+    }
+  }
   const [amountPaid, setAmountPaid] = useState<string>("");
   const [chequeNumber, setChequeNumber] = useState("");
   const [bankName, setBankName] = useState("");
@@ -204,6 +224,7 @@ export default function POSClient({
     setNewCustomerPhone("");
     setDiscount(0);
     setPaymentMethod("cash");
+    setPaymentTypeId(paymentTypes.find((pt) => pt.kind === "cash")?.id ?? null);
     setAmountPaid("");
     setChequeNumber("");
     setBankName("");
@@ -291,6 +312,11 @@ export default function POSClient({
     }
     setDiscount(draft.discount);
     setPaymentMethod(draft.payment_method);
+    setPaymentTypeId(
+      draft.payment_method === "cash" || draft.payment_method === "card" || draft.payment_method === "online"
+        ? (paymentTypes.find((pt) => pt.kind === draft.payment_method)?.id ?? null)
+        : null
+    );
     setShowDraftsModal(false);
     if (skipped.length > 0) {
       setAlertMessage(`${skipped.length} item(s) from this draft are no longer available and were skipped.`);
@@ -603,6 +629,7 @@ export default function POSClient({
           total,
           amount_paid: paid,
           payment_method: paymentMethod,
+          payment_type_id: paymentTypeId,
         })
         .select()
         .single();
@@ -1044,13 +1071,16 @@ export default function POSClient({
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Payment method</label>
             <select
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+              value={paymentTypeId ? `pt:${paymentTypeId}` : paymentMethod}
+              onChange={(e) => handlePaymentSelect(e.target.value)}
               className="w-full rounded-lg border border-slate-300 px-3 py-2"
             >
-              <option value="cash">Cash (paid in full)</option>
-              <option value="card">Card (paid in full)</option>
-              <option value="online">Online Transfer (paid in full)</option>
+              {paymentTypes.length === 0 && <option value="cash">Cash (paid in full)</option>}
+              {paymentTypes.map((pt) => (
+                <option key={pt.id} value={`pt:${pt.id}`}>
+                  {pt.name} (paid in full){pt.commission_percent > 0 ? ` — ${pt.commission_percent}% commission` : ""}
+                </option>
+              ))}
               <option value="credit">Credit (customer owes)</option>
               <option value="cheque">Cheque</option>
               <option value="mixed">Mixed (partial cash + credit)</option>

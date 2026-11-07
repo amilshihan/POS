@@ -4,9 +4,16 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCurrencySymbol } from "@/components/providers/CurrencyProvider";
 
-type Sale = { id: string; total: number; amount_paid: number; payment_method: string; created_at: string };
+type Sale = {
+  id: string;
+  total: number;
+  amount_paid: number;
+  payment_method: string;
+  commission_percent_snapshot: number | null;
+  created_at: string;
+};
 type SaleItem = { qty: number; cost_price_snapshot: number; sales: { created_at: string; status: string } };
-type Payment = { amount: number; method: string; created_at: string };
+type Payment = { amount: number; method: string; commission_percent_snapshot: number | null; created_at: string };
 type Expense = { amount: number; payment_method: string; expense_date: string };
 
 function dateKey(iso: string) {
@@ -41,26 +48,54 @@ function cogsByDate(saleItems: SaleItem[]) {
   return map;
 }
 
+function commissionByDate(sales: Sale[], payments: Payment[]) {
+  const map = new Map<string, number>();
+  for (const s of sales) {
+    if (!s.commission_percent_snapshot) continue;
+    const key = dateKey(s.created_at);
+    const amount = (Number(s.amount_paid) * Number(s.commission_percent_snapshot)) / 100;
+    map.set(key, (map.get(key) ?? 0) + amount);
+  }
+  for (const p of payments) {
+    if (!p.commission_percent_snapshot) continue;
+    const key = dateKey(p.created_at);
+    const amount = (Number(p.amount) * Number(p.commission_percent_snapshot)) / 100;
+    map.set(key, (map.get(key) ?? 0) + amount);
+  }
+  return map;
+}
+
 function periodStats(
   sales: Sale[],
   cogsMap: Map<string, number>,
+  commissionMap: Map<string, number>,
   expenses: Expense[],
   matches: (saleDateKey: string) => boolean,
   expenseMatches: (expenseDate: string) => boolean
 ) {
   let revenue = 0;
   let cogs = 0;
+  let commission = 0;
   for (const s of sales) {
     if (matches(dateKey(s.created_at))) revenue += Number(s.total);
   }
   for (const [key, value] of cogsMap.entries()) {
     if (matches(key)) cogs += value;
   }
+  for (const [key, value] of commissionMap.entries()) {
+    if (matches(key)) commission += value;
+  }
   let expenseTotal = 0;
   for (const e of expenses) {
     if (expenseMatches(e.expense_date)) expenseTotal += Number(e.amount);
   }
-  return { revenue, cogs, expenses: expenseTotal, profit: revenue - cogs - expenseTotal };
+  return {
+    revenue,
+    cogs,
+    expenses: expenseTotal,
+    commission,
+    profit: revenue - cogs - expenseTotal - commission,
+  };
 }
 
 function channelBreakdown(
@@ -70,15 +105,18 @@ function channelBreakdown(
   matchesPayment: (k: string) => boolean
 ) {
   const totals: Record<string, number> = { cash: 0, card: 0, online: 0 };
+  let commission = 0;
   for (const s of sales) {
     if (!matchesSale(dateKey(s.created_at))) continue;
     if (s.payment_method in totals) totals[s.payment_method] += Number(s.amount_paid);
+    if (s.commission_percent_snapshot) commission += (Number(s.amount_paid) * Number(s.commission_percent_snapshot)) / 100;
   }
   for (const p of payments) {
     if (!matchesPayment(dateKey(p.created_at))) continue;
     if (p.method in totals) totals[p.method] += Number(p.amount);
+    if (p.commission_percent_snapshot) commission += (Number(p.amount) * Number(p.commission_percent_snapshot)) / 100;
   }
-  return totals;
+  return { totals, commission };
 }
 
 export default function FinanceClient({
@@ -115,14 +153,34 @@ export default function FinanceClient({
 
   const cogsBySaleDate = useMemo(() => cogsByDate(saleItems), [saleItems]);
   const rangedCogsBySaleDate = useMemo(() => cogsByDate(rangedSaleItems), [rangedSaleItems]);
+  const commissionBySaleDate = useMemo(() => commissionByDate(sales, payments), [sales, payments]);
+  const rangedCommissionBySaleDate = useMemo(
+    () => commissionByDate(rangedSales, rangedPayments),
+    [rangedSales, rangedPayments]
+  );
 
-  const todayStats = periodStats(sales, cogsBySaleDate, expenses, (k) => k === today, (k) => k === today);
-  const monthStats = periodStats(sales, cogsBySaleDate, expenses, (k) => monthKeyOf(k) === thisMonth, (k) => monthKeyOf(k) === thisMonth);
-  const yearStats = periodStats(sales, cogsBySaleDate, expenses, (k) => k.slice(0, 4) === thisYear, (k) => k.slice(0, 4) === thisYear);
+  const todayStats = periodStats(sales, cogsBySaleDate, commissionBySaleDate, expenses, (k) => k === today, (k) => k === today);
+  const monthStats = periodStats(
+    sales,
+    cogsBySaleDate,
+    commissionBySaleDate,
+    expenses,
+    (k) => monthKeyOf(k) === thisMonth,
+    (k) => monthKeyOf(k) === thisMonth
+  );
+  const yearStats = periodStats(
+    sales,
+    cogsBySaleDate,
+    commissionBySaleDate,
+    expenses,
+    (k) => k.slice(0, 4) === thisYear,
+    (k) => k.slice(0, 4) === thisYear
+  );
 
   const rangeStats = periodStats(
     rangedSales,
     rangedCogsBySaleDate,
+    rangedCommissionBySaleDate,
     rangedExpenses,
     (k) => k >= rangeFrom && k <= rangeTo,
     (k) => k >= rangeFrom && k <= rangeTo
@@ -138,10 +196,11 @@ export default function FinanceClient({
     return datesBetween(rangeFrom, rangeTo).map((key) => {
       const revenue = rangedSales.filter((s) => dateKey(s.created_at) === key).reduce((s, x) => s + Number(x.total), 0);
       const cogs = rangedCogsBySaleDate.get(key) ?? 0;
+      const commission = rangedCommissionBySaleDate.get(key) ?? 0;
       const expenseTotal = rangedExpenses.filter((e) => e.expense_date === key).reduce((s, e) => s + Number(e.amount), 0);
-      return { date: key, revenue, expenses: expenseTotal, profit: revenue - cogs - expenseTotal };
+      return { date: key, revenue, expenses: expenseTotal, profit: revenue - cogs - expenseTotal - commission };
     });
-  }, [rangeFrom, rangeTo, rangedSales, rangedCogsBySaleDate, rangedExpenses]);
+  }, [rangeFrom, rangeTo, rangedSales, rangedCogsBySaleDate, rangedCommissionBySaleDate, rangedExpenses]);
 
   function applyRange() {
     if (!fromInput || !toInput) return;
@@ -171,6 +230,13 @@ export default function FinanceClient({
           {stats.expenses.toFixed(2)}
         </span>
       </div>
+      <div className="flex justify-between text-sm">
+        <span className="text-slate-500">Commission</span>
+        <span className="font-medium text-red-600">
+          {currency}
+          {stats.commission.toFixed(2)}
+        </span>
+      </div>
       <div className="flex justify-between text-sm pt-1 border-t border-slate-100">
         <span className="text-slate-600 font-medium">Net Profit</span>
         <span className={`font-bold ${stats.profit >= 0 ? "text-green-700" : "text-red-600"}`}>
@@ -181,32 +247,55 @@ export default function FinanceClient({
     </div>
   );
 
-  const ChannelCard = ({ title, totals }: { title: string; totals: Record<string, number> }) => (
-    <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-2">
-      <div className="text-sm font-semibold text-slate-700">{title}</div>
-      <div className="flex justify-between text-sm">
-        <span className="text-slate-500">Cash Received</span>
-        <span className="font-medium text-slate-900">
-          {currency}
-          {totals.cash.toFixed(2)}
-        </span>
+  const ChannelCard = ({
+    title,
+    channels,
+  }: {
+    title: string;
+    channels: { totals: Record<string, number>; commission: number };
+  }) => {
+    const totalReceived = channels.totals.cash + channels.totals.card + channels.totals.online;
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-2">
+        <div className="text-sm font-semibold text-slate-700">{title}</div>
+        <div className="flex justify-between text-sm">
+          <span className="text-slate-500">Cash Received</span>
+          <span className="font-medium text-slate-900">
+            {currency}
+            {channels.totals.cash.toFixed(2)}
+          </span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-slate-500">Online Payments Received</span>
+          <span className="font-medium text-slate-900">
+            {currency}
+            {channels.totals.online.toFixed(2)}
+          </span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-slate-500">Credit Card Received</span>
+          <span className="font-medium text-slate-900">
+            {currency}
+            {channels.totals.card.toFixed(2)}
+          </span>
+        </div>
+        <div className="flex justify-between text-sm pt-1 border-t border-slate-100">
+          <span className="text-slate-500">Commission Paid</span>
+          <span className="font-medium text-red-600">
+            -{currency}
+            {channels.commission.toFixed(2)}
+          </span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-slate-600 font-medium">Net After Commission</span>
+          <span className="font-bold text-slate-900">
+            {currency}
+            {(totalReceived - channels.commission).toFixed(2)}
+          </span>
+        </div>
       </div>
-      <div className="flex justify-between text-sm">
-        <span className="text-slate-500">Online Payments Received</span>
-        <span className="font-medium text-slate-900">
-          {currency}
-          {totals.online.toFixed(2)}
-        </span>
-      </div>
-      <div className="flex justify-between text-sm">
-        <span className="text-slate-500">Credit Card Received</span>
-        <span className="font-medium text-slate-900">
-          {currency}
-          {totals.card.toFixed(2)}
-        </span>
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -289,7 +378,7 @@ export default function FinanceClient({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <StatCard title={`Selected Range (${rangeFrom} to ${rangeTo})`} stats={rangeStats} />
-        <ChannelCard title={`Revenue by Channel (${rangeFrom} to ${rangeTo})`} totals={rangeChannels} />
+        <ChannelCard title={`Revenue by Channel (${rangeFrom} to ${rangeTo})`} channels={rangeChannels} />
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden overflow-x-auto">

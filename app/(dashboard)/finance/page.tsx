@@ -35,7 +35,7 @@ export default async function FinancePage({
     await Promise.all([
       supabase
         .from("sales")
-        .select("id, total, amount_paid, payment_method, created_at")
+        .select("id, total, amount_paid, payment_method, commission_percent_snapshot, created_at")
         .eq("status", "completed")
         .gte("created_at", since),
       supabase
@@ -43,11 +43,11 @@ export default async function FinancePage({
         .select("qty, cost_price_snapshot, sales!inner(created_at, status)")
         .eq("sales.status", "completed")
         .gte("sales.created_at", since),
-      supabase.from("payments").select("amount, method, created_at").gte("created_at", since),
+      supabase.from("payments").select("amount, method, commission_percent_snapshot, created_at").gte("created_at", since),
       supabase.from("expenses").select("amount, payment_method, expense_date").gte("expense_date", since.slice(0, 10)),
       supabase
         .from("sales")
-        .select("id, total, amount_paid, payment_method, created_at")
+        .select("id, total, amount_paid, payment_method, commission_percent_snapshot, created_at")
         .eq("status", "completed")
         .gte("created_at", rangeFrom)
         .lt("created_at", rangeToExclusive),
@@ -57,19 +57,27 @@ export default async function FinancePage({
         .eq("sales.status", "completed")
         .gte("sales.created_at", rangeFrom)
         .lt("sales.created_at", rangeToExclusive),
-      supabase.from("payments").select("amount, method, created_at").gte("created_at", rangeFrom).lt("created_at", rangeToExclusive),
+      supabase
+        .from("payments")
+        .select("amount, method, commission_percent_snapshot, created_at")
+        .gte("created_at", rangeFrom)
+        .lt("created_at", rangeToExclusive),
       supabase.from("expenses").select("amount, payment_method, expense_date").gte("expense_date", rangeFrom).lte("expense_date", rangeTo),
     ]);
 
+  type SaleRow = {
+    id: string;
+    total: number;
+    amount_paid: number;
+    payment_method: string;
+    commission_percent_snapshot: number | null;
+    created_at: string;
+  };
+  type PaymentRow = { amount: number; method: string; commission_percent_snapshot: number | null; created_at: string };
+
   return (
     <FinanceClient
-      sales={(salesRes.data ?? []) as Array<{
-        id: string;
-        total: number;
-        amount_paid: number;
-        payment_method: string;
-        created_at: string;
-      }>}
+      sales={(salesRes.data ?? []) as SaleRow[]}
       saleItems={
         (itemsRes.data ?? []) as unknown as Array<{
           qty: number;
@@ -77,17 +85,11 @@ export default async function FinancePage({
           sales: { created_at: string; status: string };
         }>
       }
-      payments={(paymentsRes.data ?? []) as Array<{ amount: number; method: string; created_at: string }>}
+      payments={(paymentsRes.data ?? []) as PaymentRow[]}
       expenses={(expensesRes.data ?? []) as Array<{ amount: number; payment_method: string; expense_date: string }>}
       rangeFrom={rangeFrom}
       rangeTo={rangeTo}
-      rangedSales={(rangedSalesRes.data ?? []) as Array<{
-        id: string;
-        total: number;
-        amount_paid: number;
-        payment_method: string;
-        created_at: string;
-      }>}
+      rangedSales={(rangedSalesRes.data ?? []) as SaleRow[]}
       rangedSaleItems={
         (rangedItemsRes.data ?? []) as unknown as Array<{
           qty: number;
@@ -95,7 +97,7 @@ export default async function FinancePage({
           sales: { created_at: string; status: string };
         }>
       }
-      rangedPayments={(rangedPaymentsRes.data ?? []) as Array<{ amount: number; method: string; created_at: string }>}
+      rangedPayments={(rangedPaymentsRes.data ?? []) as PaymentRow[]}
       rangedExpenses={(rangedExpensesRes.data ?? []) as Array<{ amount: number; payment_method: string; expense_date: string }>}
     />
   );
