@@ -302,6 +302,7 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
   const [saving, setSaving] = useState(false);
   const [payFor, setPayFor] = useState<Customer | null>(null);
   const [payAmount, setPayAmount] = useState("");
+  const [payMethod, setPayMethod] = useState<"cash" | "card" | "online" | "cheque">("cash");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmDialog, setConfirmDialog] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -469,7 +470,7 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
     const { error } = await supabase.from("payments").insert({
       customer_id: payFor.id,
       amount,
-      method: "cash",
+      method: payMethod,
       received_by: user?.id,
     });
     if (error) {
@@ -478,6 +479,7 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
     }
     setPayFor(null);
     setPayAmount("");
+    setPayMethod("cash");
     router.refresh();
   }
 
@@ -1116,6 +1118,16 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
               onChange={(e) => setPayAmount(e.target.value)}
               className={inputBase}
             />
+            <select
+              value={payMethod}
+              onChange={(e) => setPayMethod(e.target.value as typeof payMethod)}
+              className={inputBase}
+            >
+              <option value="cash">Cash</option>
+              <option value="card">Card</option>
+              <option value="online">Online Transfer</option>
+              <option value="cheque">Cheque</option>
+            </select>
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => setPayFor(null)} className={btnSecondary}>
                 Cancel
