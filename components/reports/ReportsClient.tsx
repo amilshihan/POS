@@ -6,12 +6,13 @@ import SalesTrendTab from "./SalesTrendTab";
 import ItemMovementTab from "./ItemMovementTab";
 import CategoryTab from "./CategoryTab";
 import SupplierTab from "./SupplierTab";
+import AiInsightsTab from "./AiInsightsTab";
 
 type Part = { id: string; name: string; sku: string | null; qty_on_hand: number };
 type Category = { id: string; name: string; parent_id: string | null };
 type Supplier = { id: string; name: string };
 
-const TABS = [
+const BASE_TABS = [
   { id: "overview", label: "Overview" },
   { id: "sales", label: "Sales Trend" },
   { id: "item", label: "Item Movement" },
@@ -19,13 +20,16 @@ const TABS = [
   { id: "supplier", label: "By Supplier" },
 ] as const;
 
-type Tab = (typeof TABS)[number]["id"];
+const AI_TAB = { id: "ai", label: "AI Insights" } as const;
+
+type Tab = (typeof BASE_TABS)[number]["id"] | typeof AI_TAB.id;
 
 export default function ReportsClient({
   overview,
   parts,
   categories,
   suppliers,
+  admin,
 }: {
   overview: {
     totalRevenue: number;
@@ -38,15 +42,17 @@ export default function ReportsClient({
   parts: Part[];
   categories: Category[];
   suppliers: Supplier[];
+  admin: boolean;
 }) {
   const [tab, setTab] = useState<Tab>("overview");
+  const tabs = admin ? [...BASE_TABS, AI_TAB] : BASE_TABS;
 
   return (
     <div className="p-6 space-y-4">
       <h1 className="text-2xl font-bold text-slate-900">Reports</h1>
 
       <div className="flex gap-1 border-b border-slate-200 overflow-x-auto">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
@@ -64,6 +70,7 @@ export default function ReportsClient({
       {tab === "item" && <ItemMovementTab parts={parts} />}
       {tab === "category" && <CategoryTab categories={categories} />}
       {tab === "supplier" && <SupplierTab suppliers={suppliers} />}
+      {tab === "ai" && admin && <AiInsightsTab />}
     </div>
   );
 }

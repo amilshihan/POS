@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUserAndProfile } from "@/lib/auth";
+import { isAdmin } from "@/lib/permissions";
 import ReportsClient from "@/components/reports/ReportsClient";
 
 function daysAgo(n: number) {
@@ -10,6 +12,8 @@ function daysAgo(n: number) {
 
 export default async function ReportsPage() {
   const supabase = await createClient();
+  const { profile } = await getCurrentUserAndProfile();
+  const admin = isAdmin(profile);
 
   const [salesRes, itemsRes, customersRes, partsRes, categoriesRes, suppliersRes] = await Promise.all([
     supabase
@@ -67,6 +71,7 @@ export default async function ReportsPage() {
       parts={partsRes.data ?? []}
       categories={categoriesRes.data ?? []}
       suppliers={suppliersRes.data ?? []}
+      admin={admin}
     />
   );
 }
