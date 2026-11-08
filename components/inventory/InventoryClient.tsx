@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useCurrencySymbol } from "@/components/providers/CurrencyProvider";
 import { resolveOrCreateGroupPath, resolveOrCreateSupplier } from "@/lib/groups";
 import { buildCsv, parseCsv, rowsToObjects, toBool, toNumOrNull, toNumOrZero } from "@/lib/csv";
+import { removeImageBackground } from "@/lib/removeImageBackground";
 
 type Category = { id: string; name: string; parent_id: string | null };
 type Supplier = { id: string; name: string };
@@ -164,6 +165,7 @@ type Part = {
   low_stock_warning_enabled: boolean;
   unit: string;
   is_active: boolean;
+  image_url?: string | null;
 };
 
 type ImportPayload = {
@@ -276,6 +278,7 @@ const emptyForm = {
   preferred_quantity: "",
   low_stock_warning_enabled: true,
   low_stock_threshold: "5",
+  image_url: "",
 };
 
 export default function InventoryClient({
@@ -318,6 +321,8 @@ export default function InventoryClient({
     danger: boolean;
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{
     created: number;
@@ -588,6 +593,7 @@ export default function InventoryClient({
         p.preferred_quantity === null || p.preferred_quantity === undefined ? "" : String(p.preferred_quantity),
       low_stock_warning_enabled: p.low_stock_warning_enabled,
       low_stock_threshold: String(p.low_stock_threshold),
+      image_url: p.image_url ?? "",
     });
     setShowForm(true);
     setError(null);
@@ -628,6 +634,34 @@ export default function InventoryClient({
     }
 
     await performSave(false);
+  }
+
+  async function handleImageUpload(file: File) {
+    if (!file.type.startsWith("image/")) {
+      setImageError("Please choose an image file.");
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      setImageError("Image must be smaller than 4MB.");
+      return;
+    }
+    setImageError(null);
+    setUploadingImage(true);
+    try {
+      const cutout = await removeImageBackground(file);
+      const path = `products/${Date.now()}.png`;
+      const { error: uploadError } = await supabase.storage.from("shop-assets").upload(path, cutout, {
+        cacheControl: "3600",
+        contentType: "image/png",
+      });
+      if (uploadError) throw uploadError;
+      const { data } = supabase.storage.from("shop-assets").getPublicUrl(path);
+      setForm((f) => ({ ...f, image_url: data.publicUrl }));
+    } catch (err) {
+      setImageError(err instanceof Error ? err.message : "Could not upload the image.");
+    } finally {
+      setUploadingImage(false);
+    }
   }
 
   async function performSave(allowSkuAutoFix: boolean) {
@@ -758,6 +792,7 @@ export default function InventoryClient({
       preferred_quantity: form.preferred_quantity === "" ? null : Number(form.preferred_quantity),
       low_stock_warning_enabled: form.low_stock_warning_enabled,
       low_stock_threshold: Number(form.low_stock_threshold),
+      image_url: form.image_url || null,
     };
 
     const { data: savedPart, error } = form.id
@@ -1554,6 +1589,48 @@ export default function InventoryClient({
                   rows={2}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2"
                 />
+              </div>
+              <div>
+                <label className="text-xs text-slate-500">Product photo</label>
+                {form.image_url && (
+                  <div className="mb-2 flex items-center gap-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={form.image_url}
+                      alt=""
+                      className="h-16 w-16 object-contain rounded border border-slate-200 p-1"
+                      style={{
+                        backgroundImage:
+                          "linear-gradient(45deg, #e5e7eb 25%, transparent 25%), linear-gradient(-45deg, #e5e7eb 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e5e7eb 75%), linear-gradient(-45deg, transparent 75%, #e5e7eb 75%)",
+                        backgroundSize: "10px 10px",
+                        backgroundPosition: "0 0, 0 5px, 5px -5px, -5px 0px",
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setForm({ ...form, image_url: "" })}
+                      className="text-xs text-red-600 hover:underline"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleImageUpload(file);
+                    e.target.value = "";
+                  }}
+                  className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium hover:file:bg-slate-200"
+                />
+                {uploadingImage && <p className="mt-1 text-xs text-slate-400">Removing background…</p>}
+                {imageError && <p className="mt-1 text-xs text-red-600">{imageError}</p>}
+                <p className="mt-1 text-xs text-slate-400">
+                  The background is removed automatically — works best with a plain-colored backdrop. Used for
+                  this product's social media promo images.
+                </p>
               </div>
             </div>
 

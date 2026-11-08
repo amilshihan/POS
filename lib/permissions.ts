@@ -4,7 +4,7 @@ export function isAdmin(profile: Profile | null | undefined): boolean {
   return profile?.role === "admin" && profile.is_active;
 }
 
-export const ADMIN_ONLY_PATHS = ["/suppliers", "/purchases", "/reports", "/users", "/settings"];
+export const ADMIN_ONLY_PATHS = ["/suppliers", "/purchases", "/reports", "/users", "/settings", "/promo"];
 
 export function canAccessPath(profile: Profile | null | undefined, pathname: string): boolean {
   if (isAdmin(profile)) return true;

@@ -27,6 +27,7 @@ const ADMIN_LINKS = [
   { href: "/expenses", label: "Expenses" },
   { href: "/reports", label: "Reports" },
   { href: "/finance", label: "Finance" },
+  { href: "/promo", label: "Promo Images" },
   { href: "/users", label: "Staff" },
   { href: "/settings", label: "Settings" },
 ];

@@ -9,6 +9,7 @@ type Settings = {
   shop_name: string;
   address: string | null;
   phone: string | null;
+  email: string | null;
   receipt_width_mm: number;
   low_stock_default_threshold: number;
   cheque_alert_days: number;
@@ -64,6 +65,7 @@ export default function SettingsClient({
     shop_name: settings?.shop_name ?? "",
     address: settings?.address ?? "",
     phone: settings?.phone ?? "",
+    email: settings?.email ?? "",
     receipt_width_mm: String(settings?.receipt_width_mm ?? 80),
     cheque_alert_days: String(settings?.cheque_alert_days ?? 7),
     printer_name: settings?.printer_name ?? "",
@@ -196,6 +198,7 @@ export default function SettingsClient({
         shop_name: form.shop_name,
         address: form.address || null,
         phone: form.phone || null,
+        email: form.email || null,
         receipt_width_mm: Number(form.receipt_width_mm),
         cheque_alert_days: Number(form.cheque_alert_days),
         printer_name: form.printer_name || null,
@@ -257,6 +260,17 @@ export default function SettingsClient({
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                placeholder="shop@example.com"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2"
+              />
+              <p className="mt-1 text-xs text-slate-400">Shown on social media promo images alongside the phone number.</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
