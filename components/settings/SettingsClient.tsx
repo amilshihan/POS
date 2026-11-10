@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { CURRENCIES, DEFAULT_CURRENCY_CODE } from "@/lib/currency";
+import PermissionsTab from "@/components/settings/PermissionsTab";
 
 type Settings = {
   shop_name: string;
@@ -36,10 +37,14 @@ type PaymentType = {
   sort_order: number;
 };
 
+type MenuPermissionRow = { role: string; path: string; enabled: boolean };
+type RoleRow = { name: string; label: string; is_system: boolean };
+
 const TABS = [
   { id: "general", label: "General" },
   { id: "print", label: "Print" },
   { id: "payments", label: "Payments" },
+  { id: "permissions", label: "Permissions" },
 ] as const;
 
 type Tab = (typeof TABS)[number]["id"];
@@ -47,9 +52,13 @@ type Tab = (typeof TABS)[number]["id"];
 export default function SettingsClient({
   settings,
   initialPaymentTypes,
+  initialMenuPermissions,
+  initialRoles,
 }: {
   settings: Settings | null;
   initialPaymentTypes: PaymentType[];
+  initialMenuPermissions: MenuPermissionRow[];
+  initialRoles: RoleRow[];
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -552,7 +561,11 @@ export default function SettingsClient({
           </>
         )}
 
-        {tab !== "payments" && (
+        {tab === "permissions" && (
+          <PermissionsTab initialRoles={initialRoles} initialPermissions={initialMenuPermissions} />
+        )}
+
+        {tab !== "payments" && tab !== "permissions" && (
           <>
             {saved && <div className="text-sm text-green-600">Saved.</div>}
             <button

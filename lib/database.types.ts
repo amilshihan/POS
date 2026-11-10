@@ -1,4 +1,8 @@
-export type UserRole = "admin" | "cashier";
+// Role names are dynamic (see the `roles` table) — "admin" and "cashier"
+// are the two built-in ones; Settings -> Permissions can add more.
+export type UserRole = string;
+
+export type Role = { name: string; label: string; is_system: boolean };
 export type PaymentMethod = "cash" | "credit" | "cheque" | "mixed";
 export type ChequeDirection = "received" | "issued";
 export type ChequeStatus = "pending" | "cleared" | "bounced";
@@ -8,6 +12,9 @@ export interface Profile {
   full_name: string;
   role: UserRole;
   phone: string | null;
+  username: string | null;
+  nic_no: string | null;
+  must_change_password: boolean;
   is_active: boolean;
   created_at: string;
 }
