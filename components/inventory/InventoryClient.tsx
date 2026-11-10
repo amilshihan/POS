@@ -7,6 +7,7 @@ import { useCurrencySymbol } from "@/components/providers/CurrencyProvider";
 import { resolveOrCreateGroupPath, resolveOrCreateSupplier } from "@/lib/groups";
 import { buildCsv, parseCsv, rowsToObjects, toBool, toNumOrNull, toNumOrZero } from "@/lib/csv";
 import { removeImageBackground } from "@/lib/removeImageBackground";
+import Pagination, { paginate } from "@/components/ui/Pagination";
 
 type Category = { id: string; name: string; parent_id: string | null };
 type Supplier = { id: string; name: string };
@@ -191,7 +192,16 @@ type ImportPayload = {
   preferred_quantity: number | null;
   low_stock_warning_enabled: boolean;
   low_stock_threshold: number;
+  is_drum: boolean;
+  pack_size: string | null;
+  drum_measurement: string | null;
+  open_qty_remaining: number;
+  has_warranty: boolean;
+  warranty_months: number | null;
+  image_url: string | null;
 };
+
+type CsvTier = { label: string; quantity: number; sell_price: number };
 
 // True if an imported row's values exactly match the existing product, so the
 // import can skip writing it instead of re-saving identical data.
@@ -218,8 +228,44 @@ function partsEqual(existing: Part, payload: ImportPayload): boolean {
     (existing.reorder_point ?? null) === payload.reorder_point &&
     (existing.preferred_quantity ?? null) === payload.preferred_quantity &&
     existing.low_stock_warning_enabled === payload.low_stock_warning_enabled &&
-    existing.low_stock_threshold === payload.low_stock_threshold
+    existing.low_stock_threshold === payload.low_stock_threshold &&
+    existing.is_drum === payload.is_drum &&
+    (existing.pack_size ?? null) === payload.pack_size &&
+    (existing.drum_measurement ?? null) === payload.drum_measurement &&
+    (existing.open_qty_remaining ?? 0) === payload.open_qty_remaining &&
+    (existing.has_warranty ?? false) === payload.has_warranty &&
+    (existing.warranty_months ?? null) === payload.warranty_months &&
+    (existing.image_url ?? null) === payload.image_url
   );
+}
+
+// Encodes a product's drum retail-size tiers into one CSV cell, e.g.
+// "250ml:250:450;500ml:500:850" — label:quantity:price, tiers separated by ";".
+function encodeRetailTiers(tiers: { label: string; quantity: number; sell_price: number }[]): string {
+  return tiers.map((t) => `${t.label}:${t.quantity}:${t.sell_price}`).join(";");
+}
+
+function parseRetailTiers(value: string | undefined): CsvTier[] {
+  const v = (value ?? "").trim();
+  if (!v) return [];
+  return v
+    .split(";")
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
+    .map((chunk) => {
+      const [label, qty, price] = chunk.split(":");
+      return { label: (label ?? "").trim(), quantity: Number(qty) || 0, sell_price: Number(price) || 0 };
+    })
+    .filter((t) => t.label);
+}
+
+// Order-independent signature so re-importing the same tiers in a different
+// row order doesn't look like a change.
+function tiersSignature(tiers: CsvTier[]): string {
+  return tiers
+    .map((t) => `${t.label.trim().toLowerCase()}:${t.quantity}:${t.sell_price}`)
+    .sort()
+    .join("|");
 }
 
 const CSV_HEADERS = [
@@ -245,6 +291,14 @@ const CSV_HEADERS = [
   "PreferredQuantity",
   "LowStockWarning",
   "WarningQuantity",
+  "IsDrum",
+  "PackSize",
+  "DrumMeasurement",
+  "OpenQtyRemaining",
+  "HasWarranty",
+  "WarrantyMonths",
+  "RetailTiers",
+  "ImageUrl",
 ];
 
 const emptyForm = {
@@ -351,6 +405,7 @@ export default function InventoryClient({
   });
   const [showFilters, setShowFilters] = useState(false);
   const [activeFilterColumn, setActiveFilterColumn] = useState<SortColumn | null>(null);
+  const [page, setPage] = useState(1);
 
   function getTextFilterValue(col: TextFilterColumn): string {
     return colFilters[col];
@@ -541,6 +596,8 @@ export default function InventoryClient({
 
     return rows;
   }, [initialParts, search, colFilters, sortColumn, sortDirection, groupPathById, groupId]);
+
+  const { totalPages, currentPage, paginated } = paginate(filtered, page);
 
   function nextSku(): string {
     const numericSkus = initialParts
@@ -960,7 +1017,10 @@ export default function InventoryClient({
         errors.push(`Row ${rowNum} (${name}): tax "${taxName}" not found, left blank.`);
       }
 
-      const payload = {
+      const isDrum = toBool(r["IsDrum"]);
+      const csvTiers = isDrum ? parseRetailTiers(r["RetailTiers"]) : [];
+
+      const payload: ImportPayload = {
         name,
         category_id: categoryId,
         sku: r["SKU"]?.trim() || null,
@@ -983,19 +1043,53 @@ export default function InventoryClient({
         preferred_quantity: toNumOrNull(r["PreferredQuantity"]),
         low_stock_warning_enabled: toBool(r["LowStockWarning"]),
         low_stock_threshold: toNumOrZero(r["WarningQuantity"]),
+        is_drum: isDrum,
+        pack_size: isDrum ? r["PackSize"]?.trim() || null : null,
+        drum_measurement: isDrum ? r["DrumMeasurement"]?.trim() || null : null,
+        open_qty_remaining: isDrum ? toNumOrZero(r["OpenQtyRemaining"]) : 0,
+        has_warranty: toBool(r["HasWarranty"]),
+        warranty_months: toBool(r["HasWarranty"]) ? toNumOrNull(r["WarrantyMonths"]) : null,
+        image_url: r["ImageUrl"]?.trim() || null,
       };
 
       const matched = payload.sku ? skuMap.get(payload.sku.toLowerCase()) : nameMap.get(name.toLowerCase());
 
+      async function syncRetailTiers(partId: string) {
+        await supabase.from("drum_retail_prices").delete().eq("part_id", partId);
+        if (isDrum && csvTiers.length > 0) {
+          const { error: tierError } = await supabase.from("drum_retail_prices").insert(
+            csvTiers.map((t, idx) => ({
+              part_id: partId,
+              label: t.label,
+              quantity: t.quantity,
+              sell_price: t.sell_price,
+              sort_order: idx,
+            }))
+          );
+          if (tierError) {
+            errors.push(`Row ${rowNum} (${name}): retail sizes — ${tierError.message}`);
+          }
+        }
+      }
+
       if (matched) {
-        if (partsEqual(matched, payload)) {
+        const existingTiers = drumRetailPrices.filter((t) => t.part_id === matched.id);
+        const tiersChanged = tiersSignature(existingTiers) !== tiersSignature(csvTiers);
+        const fieldsChanged = !partsEqual(matched, payload);
+
+        if (!fieldsChanged && !tiersChanged) {
           unchanged++;
           continue;
         }
-        const { error } = await supabase.from("parts").update(payload).eq("id", matched.id);
-        if (error) {
-          errors.push(`Row ${rowNum} (${name}): ${error.message}`);
-          continue;
+        if (fieldsChanged) {
+          const { error } = await supabase.from("parts").update(payload).eq("id", matched.id);
+          if (error) {
+            errors.push(`Row ${rowNum} (${name}): ${error.message}`);
+            continue;
+          }
+        }
+        if (tiersChanged) {
+          await syncRetailTiers(matched.id);
         }
         updated++;
         const merged = { ...matched, ...payload };
@@ -1009,6 +1103,9 @@ export default function InventoryClient({
         }
         created++;
         if (data) {
+          if (isDrum && csvTiers.length > 0) {
+            await syncRetailTiers((data as Part).id);
+          }
           if (payload.sku) skuMap.set(payload.sku.toLowerCase(), data as Part);
           nameMap.set(name.toLowerCase(), data as Part);
         }
@@ -1101,8 +1198,10 @@ export default function InventoryClient({
 
   function toggleSelectAll() {
     setSelectedIds((prev) => {
-      const allSelected = filtered.length > 0 && filtered.every((p) => prev.has(p.id));
-      return allSelected ? new Set() : new Set(filtered.map((p) => p.id));
+      const allSelected = paginated.length > 0 && paginated.every((p) => prev.has(p.id));
+      const next = new Set(prev);
+      paginated.forEach((p) => (allSelected ? next.delete(p.id) : next.add(p.id)));
+      return next;
     });
   }
 
@@ -1142,6 +1241,12 @@ export default function InventoryClient({
     const groupPathById = new Map(groupOptions.map((g) => [g.id, g.path]));
     const supplierNameById = new Map(suppliers.map((s) => [s.id, s.name]));
     const taxNameById = new Map(taxes.map((t) => [t.id, t.name]));
+    const tiersByPart = new Map<string, DrumRetailPrice[]>();
+    for (const t of drumRetailPrices) {
+      const list = tiersByPart.get(t.part_id) ?? [];
+      list.push(t);
+      tiersByPart.set(t.part_id, list);
+    }
 
     const rows = initialParts.map((p) => [
       p.name,
@@ -1166,6 +1271,18 @@ export default function InventoryClient({
       p.preferred_quantity ?? "",
       p.low_stock_warning_enabled ? "1" : "0",
       p.low_stock_threshold,
+      p.is_drum ? "1" : "0",
+      p.pack_size ?? "",
+      p.drum_measurement ?? "",
+      p.open_qty_remaining ?? "",
+      p.has_warranty ? "1" : "0",
+      p.warranty_months ?? "",
+      p.is_drum
+        ? encodeRetailTiers(
+            (tiersByPart.get(p.id) ?? []).slice().sort((a, b) => a.sort_order - b.sort_order)
+          )
+        : "",
+      p.image_url ?? "",
     ]);
 
     const csv = buildCsv(CSV_HEADERS, rows);
@@ -1427,7 +1544,7 @@ export default function InventoryClient({
                 <th className="px-4 py-2 w-8">
                   <input
                     type="checkbox"
-                    checked={filtered.length > 0 && filtered.every((p) => selectedIds.has(p.id))}
+                    checked={paginated.length > 0 && paginated.every((p) => selectedIds.has(p.id))}
                     onChange={toggleSelectAll}
                   />
                 </th>
@@ -1442,7 +1559,7 @@ export default function InventoryClient({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {filtered.map((p) => (
+            {paginated.map((p) => (
               <tr
                 key={p.id}
                 className={
@@ -1510,7 +1627,7 @@ export default function InventoryClient({
                 )}
               </tr>
             ))}
-            {filtered.length === 0 && (
+            {paginated.length === 0 && (
               <tr>
                 <td colSpan={admin ? 8 : 5} className="px-4 py-8 text-center text-slate-400">
                   No products found.
@@ -1519,6 +1636,14 @@ export default function InventoryClient({
             )}
           </tbody>
         </table>
+        <Pagination
+          page={currentPage}
+          totalPages={totalPages}
+          totalItems={filtered.length}
+          shownCount={paginated.length}
+          onPageChange={setPage}
+          itemLabel="products"
+        />
       </div>
 
       {showForm && (
