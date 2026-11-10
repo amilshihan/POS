@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useCurrencySymbol } from "@/components/providers/CurrencyProvider";
+import Pagination, { paginate } from "@/components/ui/Pagination";
 
 type Part = { id: string; name: string; sku: string | null; cost_price: number; sell_price: number };
 
@@ -49,6 +50,8 @@ export default function PackagesClient({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const { totalPages, currentPage, paginated } = paginate(initialPackages, page);
 
   const normalTotal = useMemo(() => items.reduce((sum, i) => sum + i.qty * i.part.sell_price, 0), [items]);
   const costFloor = useMemo(() => items.reduce((sum, i) => sum + i.qty * i.part.cost_price * 1.03, 0), [items]);
@@ -194,14 +197,14 @@ export default function PackagesClient({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {initialPackages.length === 0 ? (
+            {paginated.length === 0 ? (
               <tr>
                 <td colSpan={admin ? 5 : 4} className="px-4 py-8 text-center text-slate-400">
                   No packages yet.
                 </td>
               </tr>
             ) : (
-              initialPackages.map((pkg) => (
+              paginated.map((pkg) => (
                 <tr key={pkg.id}>
                   <td className="px-4 py-2 text-slate-800 font-medium">
                     {pkg.name}
@@ -248,6 +251,14 @@ export default function PackagesClient({
             )}
           </tbody>
         </table>
+        <Pagination
+          page={currentPage}
+          totalPages={totalPages}
+          totalItems={initialPackages.length}
+          shownCount={paginated.length}
+          onPageChange={setPage}
+          itemLabel="packages"
+        />
       </div>
 
       {showForm && (

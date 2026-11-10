@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useCurrencySymbol } from "@/components/providers/CurrencyProvider";
 import { LineChart } from "./Charts";
 import { bucketSeries, daysAgoStr, todayStr, type Granularity } from "./reportUtils";
+import Pagination, { paginate } from "@/components/ui/Pagination";
 
 type SaleRow = { total: number; created_at: string };
 
@@ -45,6 +46,13 @@ export default function SalesTrendTab() {
   );
   const totalRevenue = sales.reduce((sum, s) => sum + Number(s.total), 0);
   const saleCount = sales.length;
+
+  const [tablePage, setTablePage] = useState(1);
+  const reversedRevenueSeries = useMemo(() => revenueSeries.slice().reverse(), [revenueSeries]);
+  const { totalPages: tableTotalPages, currentPage: tableCurrentPage, paginated: paginatedRevenueSeries } = paginate(
+    reversedRevenueSeries,
+    tablePage
+  );
 
   return (
     <div className="space-y-4">
@@ -123,28 +131,33 @@ export default function SalesTrendTab() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {revenueSeries.length === 0 ? (
+            {paginatedRevenueSeries.length === 0 ? (
               <tr>
                 <td colSpan={2} className="px-4 py-6 text-center text-slate-400">
                   No sales in this range.
                 </td>
               </tr>
             ) : (
-              revenueSeries
-                .slice()
-                .reverse()
-                .map((r) => (
-                  <tr key={r.label}>
-                    <td className="px-4 py-2 text-slate-700">{r.label}</td>
-                    <td className="px-4 py-2 text-right font-medium text-slate-900">
-                      {currency}
-                      {r.value.toFixed(2)}
-                    </td>
-                  </tr>
-                ))
+              paginatedRevenueSeries.map((r) => (
+                <tr key={r.label}>
+                  <td className="px-4 py-2 text-slate-700">{r.label}</td>
+                  <td className="px-4 py-2 text-right font-medium text-slate-900">
+                    {currency}
+                    {r.value.toFixed(2)}
+                  </td>
+                </tr>
+              ))
             )}
           </tbody>
         </table>
+        <Pagination
+          page={tableCurrentPage}
+          totalPages={tableTotalPages}
+          totalItems={reversedRevenueSeries.length}
+          shownCount={paginatedRevenueSeries.length}
+          onPageChange={setTablePage}
+          itemLabel="periods"
+        />
       </div>
     </div>
   );

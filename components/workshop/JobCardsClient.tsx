@@ -18,6 +18,7 @@ import {
   btnIconSquare,
   cardSurface,
 } from "@/lib/ui";
+import Pagination, { paginate } from "@/components/ui/Pagination";
 
 type Customer = { id: string; customer_code: string; name: string };
 type VehicleOption = { id: string; customer_id: string; vehicle_number: string };
@@ -133,6 +134,7 @@ export default function JobCardsClient({
   const [mechanicFilter, setMechanicFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
+  const [page, setPage] = useState(1);
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -168,6 +170,7 @@ export default function JobCardsClient({
     const matchesPriority = priorityFilter === "all" || j.priority === priorityFilter;
     return matchesSearch && matchesMechanic && matchesStatus && matchesPriority;
   });
+  const { totalPages, currentPage, paginated } = paginate(filtered, page);
 
   function clearFilters() {
     setSearch("");
@@ -398,7 +401,7 @@ export default function JobCardsClient({
             </tr>
           </thead>
           <tbody className="divide-y divide-card">
-            {filtered.map((j) => (
+            {paginated.map((j) => (
               <tr key={j.id}>
                 <td className="px-4 py-2 text-ink font-medium">{j.job_no}</td>
                 <td className="px-4 py-2 text-muted">{new Date(j.created_at).toLocaleString()}</td>
@@ -431,7 +434,7 @@ export default function JobCardsClient({
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && (
+            {paginated.length === 0 && (
               <tr>
                 <td colSpan={9} className="px-4 py-8 text-center text-muted">
                   No job cards found.
@@ -440,6 +443,14 @@ export default function JobCardsClient({
             )}
           </tbody>
         </table>
+        <Pagination
+          page={currentPage}
+          totalPages={totalPages}
+          totalItems={filtered.length}
+          shownCount={paginated.length}
+          onPageChange={setPage}
+          itemLabel="job cards"
+        />
       </div>
 
       {showForm && (

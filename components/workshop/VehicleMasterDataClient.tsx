@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { modalTitle, fieldLabel, helperText, requiredMark, inputBase, btnPrimary, btnSecondary, cardSurface } from "@/lib/ui";
+import Pagination, { paginate } from "@/components/ui/Pagination";
 
 type Brand = { id: string; name: string; is_active: boolean };
 type Model = { id: string; brand_id: string; name: string; is_active: boolean; vehicle_brands: { name: string } | null };
@@ -77,14 +78,24 @@ export default function VehicleMasterDataClient({
   const [showBrandForm, setShowBrandForm] = useState(false);
   const [brandForm, setBrandForm] = useState({ id: "", name: "", is_active: true });
   const [brandSaving, setBrandSaving] = useState(false);
+  const [brandPage, setBrandPage] = useState(1);
 
   const [modelSearch, setModelSearch] = useState("");
   const [showModelForm, setShowModelForm] = useState(false);
   const [modelForm, setModelForm] = useState({ id: "", name: "", brand_id: "", is_active: true });
   const [modelSaving, setModelSaving] = useState(false);
+  const [modelPage, setModelPage] = useState(1);
 
   const filteredBrands = initialBrands.filter((b) => b.name.toLowerCase().includes(brandSearch.toLowerCase()));
   const filteredModels = initialModels.filter((m) => m.name.toLowerCase().includes(modelSearch.toLowerCase()));
+  const { totalPages: brandTotalPages, currentPage: brandCurrentPage, paginated: paginatedBrands } = paginate(
+    filteredBrands,
+    brandPage
+  );
+  const { totalPages: modelTotalPages, currentPage: modelCurrentPage, paginated: paginatedModels } = paginate(
+    filteredModels,
+    modelPage
+  );
 
   function openNewBrand() {
     setBrandForm({ id: "", name: "", is_active: true });
@@ -181,7 +192,7 @@ export default function VehicleMasterDataClient({
                 </tr>
               </thead>
               <tbody className="divide-y divide-card">
-                {filteredBrands.map((b) => (
+                {paginatedBrands.map((b) => (
                   <tr key={b.id} onClick={() => openEditBrand(b)} className="cursor-pointer hover:bg-surface">
                     <td className="px-3 py-2 text-ink font-medium">{b.name}</td>
                     <td className="px-3 py-2">
@@ -189,7 +200,7 @@ export default function VehicleMasterDataClient({
                     </td>
                   </tr>
                 ))}
-                {filteredBrands.length === 0 && (
+                {paginatedBrands.length === 0 && (
                   <tr>
                     <td colSpan={2} className="px-3 py-6 text-center text-muted">
                       No brands found.
@@ -198,6 +209,14 @@ export default function VehicleMasterDataClient({
                 )}
               </tbody>
             </table>
+            <Pagination
+              page={brandCurrentPage}
+              totalPages={brandTotalPages}
+              totalItems={filteredBrands.length}
+              shownCount={paginatedBrands.length}
+              onPageChange={setBrandPage}
+              itemLabel="brands"
+            />
           </div>
         </div>
 
@@ -231,7 +250,7 @@ export default function VehicleMasterDataClient({
                 </tr>
               </thead>
               <tbody className="divide-y divide-card">
-                {filteredModels.map((m) => (
+                {paginatedModels.map((m) => (
                   <tr key={m.id} onClick={() => openEditModel(m)} className="cursor-pointer hover:bg-surface">
                     <td className="px-3 py-2 text-ink font-medium">{m.name}</td>
                     <td className="px-3 py-2 text-muted">{m.vehicle_brands?.name ?? "—"}</td>
@@ -240,7 +259,7 @@ export default function VehicleMasterDataClient({
                     </td>
                   </tr>
                 ))}
-                {filteredModels.length === 0 && (
+                {paginatedModels.length === 0 && (
                   <tr>
                     <td colSpan={3} className="px-3 py-6 text-center text-muted">
                       No models found.
@@ -249,6 +268,14 @@ export default function VehicleMasterDataClient({
                 )}
               </tbody>
             </table>
+            <Pagination
+              page={modelCurrentPage}
+              totalPages={modelTotalPages}
+              totalItems={filteredModels.length}
+              shownCount={paginatedModels.length}
+              onPageChange={setModelPage}
+              itemLabel="models"
+            />
           </div>
         </div>
       </div>

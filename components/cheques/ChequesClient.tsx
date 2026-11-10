@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useCurrencySymbol } from "@/components/providers/CurrencyProvider";
+import Pagination, { paginate } from "@/components/ui/Pagination";
 
 type Cheque = {
   id: string;
@@ -47,9 +48,11 @@ export default function ChequesClient({
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [page, setPage] = useState(1);
 
   const today = new Date().toISOString().slice(0, 10);
   const filtered = initialCheques.filter((c) => filter === "all" || c.status === filter);
+  const { totalPages, currentPage, paginated } = paginate(filtered, page);
 
   async function updateStatus(id: string, status: "cleared" | "bounced") {
     const { error } = await supabase
@@ -127,7 +130,7 @@ export default function ChequesClient({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {filtered.map((c) => {
+            {paginated.map((c) => {
               const overdue = c.status === "pending" && c.due_date < today;
               return (
                 <tr key={c.id} className={overdue ? "bg-red-50" : ""}>
@@ -168,7 +171,7 @@ export default function ChequesClient({
                 </tr>
               );
             })}
-            {filtered.length === 0 && (
+            {paginated.length === 0 && (
               <tr>
                 <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
                   No cheques found.
@@ -177,6 +180,14 @@ export default function ChequesClient({
             )}
           </tbody>
         </table>
+        <Pagination
+          page={currentPage}
+          totalPages={totalPages}
+          totalItems={filtered.length}
+          shownCount={paginated.length}
+          onPageChange={setPage}
+          itemLabel="cheques"
+        />
       </div>
 
       {showForm && (

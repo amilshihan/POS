@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { getCurrentUserAndProfile } from "@/lib/auth";
-import { isAdmin } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 import CurrencyProvider from "@/components/providers/CurrencyProvider";
 import DashboardShell from "@/components/layout/DashboardShell";
@@ -12,14 +11,23 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect("/login");
   }
 
-  const admin = isAdmin(profile);
+  const role = profile?.role ?? "cashier";
 
   const supabase = await createClient();
-  const { data: settings } = await supabase.from("shop_settings").select("currency").single();
+  const [{ data: settings }, { data: permissions }, { data: roles }] = await Promise.all([
+    supabase.from("shop_settings").select("currency").single(),
+    supabase.from("menu_permissions").select("role, path, enabled"),
+    supabase.from("roles").select("name, label"),
+  ]);
+  const roleLabel = roles?.find((r) => r.name === role)?.label ?? role;
 
   return (
     <CurrencyProvider currency={settings?.currency}>
-      <DashboardShell admin={admin} displayName={`${profile?.full_name ?? user.email} · ${admin ? "Admin" : "Cashier"}`}>
+      <DashboardShell
+        role={role}
+        permissions={permissions ?? []}
+        displayName={`${profile?.full_name ?? user.email} · ${roleLabel}`}
+      >
         {children}
       </DashboardShell>
     </CurrencyProvider>

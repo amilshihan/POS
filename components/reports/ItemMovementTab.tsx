@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { LineChart, BarChart } from "./Charts";
 import { bucketSeries, daysAgoStr, todayStr, type Granularity } from "./reportUtils";
+import Pagination, { paginate } from "@/components/ui/Pagination";
 
 type Part = { id: string; name: string; sku: string | null; qty_on_hand: number };
 type Movement = { id: string; change_qty: number; reason: string; created_at: string };
@@ -114,6 +115,13 @@ export default function ItemMovementTab({ parts }: { parts: Part[] }) {
 
   const soldQty = inRange.filter((m) => m.reason === "sale").reduce((s, m) => s - Number(m.change_qty), 0);
   const purchasedQty = inRange.filter((m) => m.reason === "purchase").reduce((s, m) => s + Number(m.change_qty), 0);
+
+  const [movementPage, setMovementPage] = useState(1);
+  const reversedInRange = useMemo(() => inRange.slice().reverse(), [inRange]);
+  const { totalPages: movementTotalPages, currentPage: movementCurrentPage, paginated: paginatedMovements } = paginate(
+    reversedInRange,
+    movementPage
+  );
 
   return (
     <div className="space-y-4">
@@ -261,30 +269,35 @@ export default function ItemMovementTab({ parts }: { parts: Part[] }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {inRange.length === 0 ? (
+                {paginatedMovements.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="px-4 py-6 text-center text-slate-400">
                       No movements in this range.
                     </td>
                   </tr>
                 ) : (
-                  inRange
-                    .slice()
-                    .reverse()
-                    .map((m) => (
-                      <tr key={m.id}>
-                        <td className="px-4 py-2 text-slate-700">{new Date(m.created_at).toLocaleString()}</td>
-                        <td className="px-4 py-2 text-slate-600">{REASON_LABEL[m.reason] ?? m.reason}</td>
-                        <td className={`px-4 py-2 text-right font-medium ${Number(m.change_qty) >= 0 ? "text-green-700" : "text-red-600"}`}>
-                          {Number(m.change_qty) >= 0 ? "+" : ""}
-                          {Number(m.change_qty).toFixed(2)}
-                        </td>
-                        <td className="px-4 py-2 text-right text-slate-800">{m.balance.toFixed(2)}</td>
-                      </tr>
-                    ))
+                  paginatedMovements.map((m) => (
+                    <tr key={m.id}>
+                      <td className="px-4 py-2 text-slate-700">{new Date(m.created_at).toLocaleString()}</td>
+                      <td className="px-4 py-2 text-slate-600">{REASON_LABEL[m.reason] ?? m.reason}</td>
+                      <td className={`px-4 py-2 text-right font-medium ${Number(m.change_qty) >= 0 ? "text-green-700" : "text-red-600"}`}>
+                        {Number(m.change_qty) >= 0 ? "+" : ""}
+                        {Number(m.change_qty).toFixed(2)}
+                      </td>
+                      <td className="px-4 py-2 text-right text-slate-800">{m.balance.toFixed(2)}</td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
+            <Pagination
+              page={movementCurrentPage}
+              totalPages={movementTotalPages}
+              totalItems={reversedInRange.length}
+              shownCount={paginatedMovements.length}
+              onPageChange={setMovementPage}
+              itemLabel="movements"
+            />
           </div>
         </>
       )}

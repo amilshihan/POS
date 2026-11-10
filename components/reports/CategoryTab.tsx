@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useCurrencySymbol } from "@/components/providers/CurrencyProvider";
 import { BarChart, LineChart } from "./Charts";
 import { bucketSeries, daysAgoStr, todayStr, type Granularity } from "./reportUtils";
+import Pagination, { paginate } from "@/components/ui/Pagination";
 
 type Category = { id: string; name: string; parent_id: string | null };
 type SaleItemRow = {
@@ -100,6 +101,16 @@ export default function CategoryTab({ categories }: { categories: Category[] }) 
   const totalForSelection = rowsForSelection.reduce((s, r) => s + Number(r.line_total), 0);
   const qtyForSelection = rowsForSelection.reduce((s, r) => s + Number(r.qty), 0);
 
+  const [tablePage, setTablePage] = useState(1);
+  const tableRows = useMemo(
+    () => (categoryId ? trendSeries.slice().reverse() : byCategoryBar),
+    [categoryId, trendSeries, byCategoryBar]
+  );
+  const { totalPages: tableTotalPages, currentPage: tableCurrentPage, paginated: paginatedTableRows } = paginate(
+    tableRows,
+    tablePage
+  );
+
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-wrap items-end gap-3">
@@ -181,14 +192,14 @@ export default function CategoryTab({ categories }: { categories: Category[] }) 
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {(categoryId ? trendSeries : byCategoryBar).length === 0 ? (
+            {paginatedTableRows.length === 0 ? (
               <tr>
                 <td colSpan={2} className="px-4 py-6 text-center text-slate-400">
                   No sales in this range.
                 </td>
               </tr>
             ) : (
-              (categoryId ? trendSeries.slice().reverse() : byCategoryBar).map((r) => (
+              paginatedTableRows.map((r) => (
                 <tr key={r.label}>
                   <td className="px-4 py-2 text-slate-700">{r.label}</td>
                   <td className="px-4 py-2 text-right font-medium text-slate-900">
@@ -200,6 +211,14 @@ export default function CategoryTab({ categories }: { categories: Category[] }) 
             )}
           </tbody>
         </table>
+        <Pagination
+          page={tableCurrentPage}
+          totalPages={tableTotalPages}
+          totalItems={tableRows.length}
+          shownCount={paginatedTableRows.length}
+          onPageChange={setTablePage}
+          itemLabel={categoryId ? "periods" : "categories"}
+        />
       </div>
     </div>
   );

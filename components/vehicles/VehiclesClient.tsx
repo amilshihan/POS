@@ -22,6 +22,7 @@ import {
   cardSurface,
   twoColRow,
 } from "@/lib/ui";
+import Pagination, { paginate } from "@/components/ui/Pagination";
 
 type Customer = { id: string; customer_code: string; name: string };
 type Brand = { id: string; name: string };
@@ -228,6 +229,8 @@ export default function VehiclesClient({
     const matchesModel = modelFilter === "all" || v.model_id === modelFilter;
     return matchesSearch && matchesBrand && matchesModel;
   });
+  const [page, setPage] = useState(1);
+  const { totalPages, currentPage, paginated } = paginate(filtered, page);
 
   function clearFilters() {
     setSearch("");
@@ -322,9 +325,9 @@ export default function VehiclesClient({
 
   function toggleSelectAll() {
     setSelectedIds((prev) => {
-      const allSelected = filtered.length > 0 && filtered.every((v) => prev.has(v.id));
+      const allSelected = paginated.length > 0 && paginated.every((v) => prev.has(v.id));
       const next = new Set(prev);
-      filtered.forEach((v) => (allSelected ? next.delete(v.id) : next.add(v.id)));
+      paginated.forEach((v) => (allSelected ? next.delete(v.id) : next.add(v.id)));
       return next;
     });
   }
@@ -591,7 +594,7 @@ export default function VehiclesClient({
               <th className="px-4 py-2 w-8">
                 <input
                   type="checkbox"
-                  checked={filtered.length > 0 && filtered.every((v) => selectedIds.has(v.id))}
+                  checked={paginated.length > 0 && paginated.every((v) => selectedIds.has(v.id))}
                   onChange={toggleSelectAll}
                 />
               </th>
@@ -606,7 +609,7 @@ export default function VehiclesClient({
             </tr>
           </thead>
           <tbody className="divide-y divide-card">
-            {filtered.map((v) => (
+            {paginated.map((v) => (
               <tr key={v.id}>
                 <td className="px-4 py-2">
                   <input type="checkbox" checked={selectedIds.has(v.id)} onChange={() => toggleSelected(v.id)} />
@@ -640,7 +643,7 @@ export default function VehiclesClient({
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && (
+            {paginated.length === 0 && (
               <tr>
                 <td colSpan={9} className="px-4 py-8 text-center text-muted">
                   No vehicles found.
@@ -649,6 +652,14 @@ export default function VehiclesClient({
             )}
           </tbody>
         </table>
+        <Pagination
+          page={currentPage}
+          totalPages={totalPages}
+          totalItems={filtered.length}
+          shownCount={paginated.length}
+          onPageChange={setPage}
+          itemLabel="vehicles"
+        />
       </div>
 
       {showForm && (

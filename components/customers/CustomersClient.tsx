@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { TITLES, combineTitleName, isValidEmail, isValidName, isValidPhone, splitTitle } from "@/lib/validation";
 import { COUNTRY_CODES, DEFAULT_COUNTRY_CODE, combinePhone, splitPhone } from "@/lib/countries";
 import { useCurrencySymbol } from "@/components/providers/CurrencyProvider";
+import Pagination, { paginate } from "@/components/ui/Pagination";
 import {
   modalTitle,
   fieldLabel,
@@ -42,8 +43,6 @@ type Customer = {
   guarantor_nic: string | null;
   guarantor_mobile: string | null;
 };
-
-const PAGE_SIZE = 20;
 
 function FieldIcon({ path, className }: { path: ReactNode; className?: string }) {
   return (
@@ -330,9 +329,7 @@ export default function CustomersClient({
     const matchesStatus = statusFilter === "all" || (statusFilter === "active" ? c.is_active : !c.is_active);
     return matchesSearch && matchesStatus;
   });
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const { totalPages, currentPage, paginated } = paginate(filtered, page);
 
   function clearFilters() {
     setSearch("");
@@ -754,27 +751,14 @@ export default function CustomersClient({
             )}
           </tbody>
         </table>
-        <div className="flex items-center justify-between px-4 py-3 border-t border-card text-sm">
-          <span className="text-muted">
-            Page {currentPage} · Showing {paginated.length} of {filtered.length}
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage <= 1}
-              className="px-3 py-1.5 rounded-lg border border-input text-muted hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent"
-            >
-              Prev
-            </button>
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage >= totalPages}
-              className="px-3 py-1.5 rounded-lg border border-input text-muted hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent"
-            >
-              Next
-            </button>
-          </div>
-        </div>
+        <Pagination
+          page={currentPage}
+          totalPages={totalPages}
+          totalItems={filtered.length}
+          shownCount={paginated.length}
+          onPageChange={setPage}
+          itemLabel="customers"
+        />
       </div>
 
       {showForm && (

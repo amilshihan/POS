@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useCurrencySymbol } from "@/components/providers/CurrencyProvider";
 import { BarChart, LineChart } from "./Charts";
 import { bucketSeries, daysAgoStr, todayStr, type Granularity } from "./reportUtils";
+import Pagination, { paginate } from "@/components/ui/Pagination";
 
 type Supplier = { id: string; name: string };
 type SaleItemRow = {
@@ -77,6 +78,16 @@ export default function SupplierTab({ suppliers }: { suppliers: Supplier[] }) {
   const totalForSelection = rowsForSelection.reduce((s, r) => s + Number(r.line_total), 0);
   const qtyForSelection = rowsForSelection.reduce((s, r) => s + Number(r.qty), 0);
   const selectedName = supplierId ? (nameById.get(supplierId) ?? "") : "";
+
+  const [tablePage, setTablePage] = useState(1);
+  const tableRows = useMemo(
+    () => (supplierId ? trendSeries.slice().reverse() : bySupplierBar),
+    [supplierId, trendSeries, bySupplierBar]
+  );
+  const { totalPages: tableTotalPages, currentPage: tableCurrentPage, paginated: paginatedTableRows } = paginate(
+    tableRows,
+    tablePage
+  );
 
   return (
     <div className="space-y-4">
@@ -159,14 +170,14 @@ export default function SupplierTab({ suppliers }: { suppliers: Supplier[] }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {(supplierId ? trendSeries : bySupplierBar).length === 0 ? (
+            {paginatedTableRows.length === 0 ? (
               <tr>
                 <td colSpan={2} className="px-4 py-6 text-center text-slate-400">
                   No sales in this range.
                 </td>
               </tr>
             ) : (
-              (supplierId ? trendSeries.slice().reverse() : bySupplierBar).map((r) => (
+              paginatedTableRows.map((r) => (
                 <tr key={r.label}>
                   <td className="px-4 py-2 text-slate-700">{r.label}</td>
                   <td className="px-4 py-2 text-right font-medium text-slate-900">
@@ -178,6 +189,14 @@ export default function SupplierTab({ suppliers }: { suppliers: Supplier[] }) {
             )}
           </tbody>
         </table>
+        <Pagination
+          page={tableCurrentPage}
+          totalPages={tableTotalPages}
+          totalItems={tableRows.length}
+          shownCount={paginatedTableRows.length}
+          onPageChange={setTablePage}
+          itemLabel={supplierId ? "periods" : "suppliers"}
+        />
       </div>
     </div>
   );

@@ -1,22 +1,40 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import SignOutButton from "@/components/ui/SignOutButton";
 import NavLinks from "@/components/ui/NavLinks";
+import type { MenuPermissionRow } from "@/lib/permissions";
 
 const DESKTOP_BREAKPOINT = 1024;
 
 export default function DashboardShell({
-  admin,
+  role,
+  permissions,
   displayName,
   children,
 }: {
-  admin: boolean;
+  role: string;
+  permissions: MenuPermissionRow[];
   displayName: string;
   children: React.ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopCollapsed, setDesktopCollapsed] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
+  const pathname = usePathname();
+  const router = useRouter();
+  const supabase = createClient();
+
+  async function handleSignOut() {
+    setConfirmSignOut(false);
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  }
 
   function toggleSidebar() {
     if (typeof window !== "undefined" && window.innerWidth >= DESKTOP_BREAKPOINT) {
@@ -39,7 +57,71 @@ export default function DashboardShell({
           </svg>
         </button>
         <span className="font-bold">Spare Parts POS</span>
+        <div className="relative ml-auto">
+          <button
+            onClick={() => setProfileMenuOpen((v) => !v)}
+            aria-label="Account menu"
+            aria-expanded={profileMenuOpen}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-700 text-sm font-semibold uppercase text-white hover:bg-slate-600 transition"
+          >
+            {displayName.trim().charAt(0) || "?"}
+          </button>
+          {profileMenuOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setProfileMenuOpen(false)} aria-hidden="true" />
+              <div className="absolute right-0 top-full mt-2 w-48 rounded-lg bg-white text-slate-700 shadow-lg border border-slate-200 py-1 z-50">
+                <div className="px-3 py-2 border-b border-slate-100">
+                  <div className="text-sm font-medium text-slate-900 truncate">{displayName}</div>
+                </div>
+                <Link
+                  href="/profile"
+                  onClick={() => setProfileMenuOpen(false)}
+                  className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                >
+                  My Profile
+                </Link>
+                <button
+                  onClick={() => {
+                    setProfileMenuOpen(false);
+                    setConfirmSignOut(true);
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                >
+                  Sign Out
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
+
+      {confirmSignOut && (
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setConfirmSignOut(false);
+          }}
+        >
+          <div className="bg-white rounded-xl p-6 w-full max-w-sm space-y-4">
+            <h2 className="font-semibold text-lg text-slate-900">Sign out?</h2>
+            <p className="text-sm text-slate-500">You&apos;ll need to log in again to access your account.</p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setConfirmSignOut(false)}
+                className="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSignOut}
+                className="px-4 py-2 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700"
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex">
         {mobileOpen && (
@@ -71,7 +153,7 @@ export default function DashboardShell({
             </button>
           </div>
           <div onClick={() => setMobileOpen(false)} className="flex-1 min-h-0 flex flex-col">
-            <NavLinks admin={admin} />
+            <NavLinks role={role} permissions={permissions} />
           </div>
           <div className="mt-auto p-4 border-t border-slate-800">
             <SignOutButton />

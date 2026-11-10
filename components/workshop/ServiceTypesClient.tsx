@@ -17,6 +17,7 @@ import {
   iconActionBtnDanger,
   cardSurface,
 } from "@/lib/ui";
+import Pagination, { paginate } from "@/components/ui/Pagination";
 
 type ServiceType = {
   id: string;
@@ -75,8 +76,10 @@ export default function ServiceTypesClient({ initialServiceTypes }: { initialSer
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [page, setPage] = useState(1);
 
   const filtered = initialServiceTypes.filter((s) => s.name.toLowerCase().includes(search.toLowerCase()));
+  const { totalPages, currentPage, paginated } = paginate(filtered, page);
 
   function openNew() {
     setForm(EMPTY_FORM);
@@ -174,7 +177,7 @@ export default function ServiceTypesClient({ initialServiceTypes }: { initialSer
             </tr>
           </thead>
           <tbody className="divide-y divide-card">
-            {filtered.map((s) => (
+            {paginated.map((s) => (
               <tr key={s.id}>
                 <td className="px-4 py-2 text-ink font-medium">{s.name}</td>
                 <td className="px-4 py-2 text-muted">{serviceCategoryLabel(s.category)}</td>
@@ -209,7 +212,7 @@ export default function ServiceTypesClient({ initialServiceTypes }: { initialSer
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && (
+            {paginated.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-4 py-8 text-center text-muted">
                   No service types found.
@@ -218,6 +221,14 @@ export default function ServiceTypesClient({ initialServiceTypes }: { initialSer
             )}
           </tbody>
         </table>
+        <Pagination
+          page={currentPage}
+          totalPages={totalPages}
+          totalItems={filtered.length}
+          shownCount={paginated.length}
+          onPageChange={setPage}
+          itemLabel="service types"
+        />
       </div>
 
       {showForm && (

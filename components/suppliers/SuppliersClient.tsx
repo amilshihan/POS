@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import Pagination, { paginate } from "@/components/ui/Pagination";
 
 type Supplier = { id: string; name: string; phone: string | null; address: string | null; notes: string | null };
 
@@ -14,6 +15,8 @@ export default function SuppliersClient({ initialSuppliers }: { initialSuppliers
   const [form, setForm] = useState({ name: "", phone: "", address: "", notes: "" });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [page, setPage] = useState(1);
+  const { totalPages, currentPage, paginated } = paginate(initialSuppliers, page);
 
   async function handleSave() {
     if (!form.name.trim()) {
@@ -68,7 +71,7 @@ export default function SuppliersClient({ initialSuppliers }: { initialSuppliers
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {initialSuppliers.map((s) => (
+            {paginated.map((s) => (
               <tr key={s.id}>
                 <td className="px-4 py-2 text-slate-800">{s.name}</td>
                 <td className="px-4 py-2 text-slate-500">{s.phone}</td>
@@ -76,7 +79,7 @@ export default function SuppliersClient({ initialSuppliers }: { initialSuppliers
                 <td className="px-4 py-2 text-slate-500">{s.notes}</td>
               </tr>
             ))}
-            {initialSuppliers.length === 0 && (
+            {paginated.length === 0 && (
               <tr>
                 <td colSpan={4} className="px-4 py-8 text-center text-slate-400">
                   No suppliers yet.
@@ -85,6 +88,14 @@ export default function SuppliersClient({ initialSuppliers }: { initialSuppliers
             )}
           </tbody>
         </table>
+        <Pagination
+          page={currentPage}
+          totalPages={totalPages}
+          totalItems={initialSuppliers.length}
+          shownCount={paginated.length}
+          onPageChange={setPage}
+          itemLabel="suppliers"
+        />
       </div>
 
       {showForm && (

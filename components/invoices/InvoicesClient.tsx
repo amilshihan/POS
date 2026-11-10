@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getCurrencySymbol } from "@/lib/currency";
 import { cardSurface, btnSecondary, inputBase } from "@/lib/ui";
+import Pagination, { paginate } from "@/components/ui/Pagination";
 
 type Sale = {
   id: string;
@@ -71,6 +72,7 @@ export default function InvoicesClient({
 
   const [tab, setTab] = useState<FilterTab>("all");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [cancelTarget, setCancelTarget] = useState<Sale | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
@@ -109,6 +111,8 @@ export default function InvoicesClient({
       );
     });
   }, [initialSales, tab, search]);
+
+  const { totalPages, currentPage, paginated } = paginate(filtered, page);
 
   async function handleCancel() {
     if (!cancelTarget) return;
@@ -175,14 +179,14 @@ export default function InvoicesClient({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {filtered.length === 0 ? (
+            {paginated.length === 0 ? (
               <tr>
                 <td colSpan={9} className="px-4 py-8 text-center text-slate-400">
                   No invoices found.
                 </td>
               </tr>
             ) : (
-              filtered.map((s) => {
+              paginated.map((s) => {
                 const state = invoiceState(s);
                 return (
                   <tr key={s.id}>
@@ -223,6 +227,14 @@ export default function InvoicesClient({
             )}
           </tbody>
         </table>
+        <Pagination
+          page={currentPage}
+          totalPages={totalPages}
+          totalItems={filtered.length}
+          shownCount={paginated.length}
+          onPageChange={setPage}
+          itemLabel="invoices"
+        />
       </div>
 
       {cancelTarget && (

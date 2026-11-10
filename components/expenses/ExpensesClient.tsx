@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useCurrencySymbol } from "@/components/providers/CurrencyProvider";
+import Pagination, { paginate } from "@/components/ui/Pagination";
 
 type Expense = {
   id: string;
@@ -44,6 +45,8 @@ export default function ExpensesClient({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const { totalPages, currentPage, paginated } = paginate(initialExpenses, page);
 
   const todayTotal = useMemo(
     () => initialExpenses.filter((e) => e.expense_date === todayDate()).reduce((s, e) => s + Number(e.amount), 0),
@@ -150,14 +153,14 @@ export default function ExpensesClient({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {initialExpenses.length === 0 ? (
+            {paginated.length === 0 ? (
               <tr>
                 <td colSpan={admin ? 7 : 6} className="px-4 py-8 text-center text-slate-400">
                   No expenses recorded yet.
                 </td>
               </tr>
             ) : (
-              initialExpenses.map((e) => (
+              paginated.map((e) => (
                 <tr key={e.id}>
                   <td className="px-4 py-2 text-slate-700">{new Date(e.expense_date).toLocaleDateString()}</td>
                   <td className="px-4 py-2 text-slate-800 font-medium">{e.category}</td>
@@ -192,6 +195,14 @@ export default function ExpensesClient({
             )}
           </tbody>
         </table>
+        <Pagination
+          page={currentPage}
+          totalPages={totalPages}
+          totalItems={initialExpenses.length}
+          shownCount={paginated.length}
+          onPageChange={setPage}
+          itemLabel="expenses"
+        />
       </div>
 
       {showForm && (

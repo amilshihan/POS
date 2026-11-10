@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useCurrencySymbol } from "@/components/providers/CurrencyProvider";
+import Pagination, { paginate } from "@/components/ui/Pagination";
 
 type Purchase = {
   id: string;
@@ -24,6 +26,8 @@ const STATUS_BADGE: Record<string, string> = {
 
 export default function PurchasesClient({ initialPurchases }: { initialPurchases: Purchase[] }) {
   const symbol = useCurrencySymbol();
+  const [page, setPage] = useState(1);
+  const { totalPages, currentPage, paginated } = paginate(initialPurchases, page);
 
   return (
     <div className="p-6 space-y-4">
@@ -45,7 +49,7 @@ export default function PurchasesClient({ initialPurchases }: { initialPurchases
         <>
           {/* Mobile: stacked cards */}
           <div className="space-y-3 sm:hidden">
-            {initialPurchases.map((p) => {
+            {paginated.map((p) => {
               const scan = p.purchase_invoice_scans?.[0];
               return (
                 <div key={p.id} className="bg-white rounded-xl border border-slate-200 p-4 space-y-2">
@@ -85,6 +89,16 @@ export default function PurchasesClient({ initialPurchases }: { initialPurchases
                 </div>
               );
             })}
+            <div className="bg-white rounded-xl border border-slate-200">
+              <Pagination
+                page={currentPage}
+                totalPages={totalPages}
+                totalItems={initialPurchases.length}
+                shownCount={paginated.length}
+                onPageChange={setPage}
+                itemLabel="purchases"
+              />
+            </div>
           </div>
 
           {/* Desktop/tablet: table */}
@@ -102,7 +116,7 @@ export default function PurchasesClient({ initialPurchases }: { initialPurchases
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {initialPurchases.map((p) => {
+                {paginated.map((p) => {
                   const scan = p.purchase_invoice_scans?.[0];
                   return (
                     <tr key={p.id}>
@@ -144,6 +158,14 @@ export default function PurchasesClient({ initialPurchases }: { initialPurchases
                 })}
               </tbody>
             </table>
+            <Pagination
+              page={currentPage}
+              totalPages={totalPages}
+              totalItems={initialPurchases.length}
+              shownCount={paginated.length}
+              onPageChange={setPage}
+              itemLabel="purchases"
+            />
           </div>
         </>
       )}

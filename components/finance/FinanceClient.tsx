@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCurrencySymbol } from "@/components/providers/CurrencyProvider";
+import Pagination, { paginate } from "@/components/ui/Pagination";
 
 type Sale = {
   id: string;
@@ -150,6 +151,7 @@ export default function FinanceClient({
 
   const [fromInput, setFromInput] = useState(rangeFrom);
   const [toInput, setToInput] = useState(rangeTo);
+  const [trendPage, setTrendPage] = useState(1);
 
   const cogsBySaleDate = useMemo(() => cogsByDate(saleItems), [saleItems]);
   const rangedCogsBySaleDate = useMemo(() => cogsByDate(rangedSaleItems), [rangedSaleItems]);
@@ -201,6 +203,12 @@ export default function FinanceClient({
       return { date: key, revenue, expenses: expenseTotal, profit: revenue - cogs - expenseTotal - commission };
     });
   }, [rangeFrom, rangeTo, rangedSales, rangedCogsBySaleDate, rangedCommissionBySaleDate, rangedExpenses]);
+
+  const reversedTrend = useMemo(() => rangedTrend.slice().reverse(), [rangedTrend]);
+  const { totalPages: trendTotalPages, currentPage: trendCurrentPage, paginated: paginatedTrend } = paginate(
+    reversedTrend,
+    trendPage
+  );
 
   function applyRange() {
     if (!fromInput || !toInput) return;
@@ -395,36 +403,41 @@ export default function FinanceClient({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {rangedTrend.length === 0 ? (
+            {paginatedTrend.length === 0 ? (
               <tr>
                 <td colSpan={4} className="px-4 py-8 text-center text-slate-400">
                   No data in this range.
                 </td>
               </tr>
             ) : (
-              rangedTrend
-                .slice()
-                .reverse()
-                .map((d) => (
-                  <tr key={d.date}>
-                    <td className="px-4 py-2 text-slate-700">{new Date(d.date).toLocaleDateString()}</td>
-                    <td className="px-4 py-2 text-right text-slate-800">
-                      {currency}
-                      {d.revenue.toFixed(2)}
-                    </td>
-                    <td className="px-4 py-2 text-right text-red-600">
-                      {currency}
-                      {d.expenses.toFixed(2)}
-                    </td>
-                    <td className={`px-4 py-2 text-right font-medium ${d.profit >= 0 ? "text-green-700" : "text-red-600"}`}>
-                      {currency}
-                      {d.profit.toFixed(2)}
-                    </td>
-                  </tr>
-                ))
+              paginatedTrend.map((d) => (
+                <tr key={d.date}>
+                  <td className="px-4 py-2 text-slate-700">{new Date(d.date).toLocaleDateString()}</td>
+                  <td className="px-4 py-2 text-right text-slate-800">
+                    {currency}
+                    {d.revenue.toFixed(2)}
+                  </td>
+                  <td className="px-4 py-2 text-right text-red-600">
+                    {currency}
+                    {d.expenses.toFixed(2)}
+                  </td>
+                  <td className={`px-4 py-2 text-right font-medium ${d.profit >= 0 ? "text-green-700" : "text-red-600"}`}>
+                    {currency}
+                    {d.profit.toFixed(2)}
+                  </td>
+                </tr>
+              ))
             )}
           </tbody>
         </table>
+        <Pagination
+          page={trendCurrentPage}
+          totalPages={trendTotalPages}
+          totalItems={reversedTrend.length}
+          shownCount={paginatedTrend.length}
+          onPageChange={setTrendPage}
+          itemLabel="days"
+        />
       </div>
     </div>
   );
